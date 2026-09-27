@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>BASKETBALL SHOOT - Smooth X-Move</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:none;user-select:none}
+html,body{width:100%;height:100%;overflow:hidden;background:#0c1220;position:fixed}
+#wrap{position:relative;width:100vw;height:100vh;height:100dvh;display:flex;flex-direction:column;background:radial-gradient(130% 75% at 50% 0%, #1e3a5f 0%, #0c1220 62%, #060a14 100%)}
+canvas{flex:1;display:block;width:100%}
+#top{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:12px;padding-top:calc(12px + env(safe-area-inset-top));z-index:10;pointer-events:none}
+.pill{background:rgba(15,22,45,0.92);border:1px solid rgba(255,255,255,0.15);border-radius:999px;padding:7px 14px;color:#fff;font-weight:800;font-size:12px;display:flex;gap:6px;align-items:center;backdrop-filter:blur(10px)}
+.pill .s{color:rgba(255,255,255,0.5);font-size:10px}
+#combo{position:absolute;left:50%;top:88px;transform:translateX(-50%);z-index:9;pointer-events:none;opacity:0;transition:all 0.35s cubic-bezier(.34,1.56,.64,1)}
+#combo.show{opacity:1;transform:translateX(-50%) scale(1.15)}
+.comboBox{background:linear-gradient(135deg,#ff7a00,#ff3c00);color:#fff;font-weight:900;font-size:18px;padding:7px 18px;border-radius:999px;box-shadow:0 0 22px rgba(255,122,0,0.6)}
+#bottom{padding:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom));background:linear-gradient(180deg,transparent,rgba(0,0,0,0.55));z-index:10}
+#powerRow{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+#track{flex:1;height:12px;background:rgba(255,255,255,0.13);border-radius:999px;overflow:hidden;border:1px solid rgba(255,255,255,0.1)}
+#fill{height:100%;width:0%;background:linear-gradient(90deg,#00f5ff,#ff7a00,#ff3c00);transition:width 0.04s linear}
+#moveHint{font-size:10px;color:rgba(255,255,255,0.55);font-weight:700;letter-spacing:0.5px;text-align:center;margin-bottom:8px}
+#btn{width:100%;height:62px;border-radius:18px;border:none;background:linear-gradient(180deg,#ff7a00,#ff3c00);color:#fff;font-weight:900;font-size:16px;letter-spacing:0.8px;box-shadow:0 8px 24px rgba(255,122,0,0.45)}
+#btn:disabled{opacity:0.35}
+#btn:active{transform:scale(0.97)}
+#xSlider{position:absolute;left:12px;right:12px;bottom:92px;z-index:9;height:44px;display:flex;align-items:center;gap:10px;background:rgba(15,22,45,0.75);border:1px solid rgba(255,255,255,0.1);border-radius:999px;padding:6px 14px;backdrop-filter:blur(10px)}
+#xTrack{flex:1;height:6px;background:rgba(255,255,255,0.12);border-radius:999px;position:relative}
+#xThumb{position:absolute;top:50%;transform:translate(-50%,-50%);width:36px;height:36px;border-radius:50%;background:linear-gradient(180deg,#fff,#cfd8e0);border:2px solid #ff7a00;box-shadow:0 4px 12px rgba(0,0,0,0.4);pointer-events:none;transition:left 0.08s linear}
+#overlay{position:absolute;inset:0;z-index:30;background:radial-gradient(800px 600px at 50% 20%, rgba(30,58,95,0.98), rgba(6,10,20,0.98));backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;padding:20px}
+.card{width:min(420px,92vw);background:linear-gradient(180deg,#1e2d52,#0f172a);border:1px solid rgba(255,255,255,0.14);border-radius:22px;padding:22px;text-align:center}
+.card h1{color:#fff;font-size:32px;font-weight:900;line-height:0.9}
+.card h1 span{color:#ff7a00;display:block;text-shadow:0 0 12px #ff7a00}
+.card .sub{color:#00f5ff;font-size:10px;letter-spacing:4px;margin-top:6px;font-weight:700}
+.card p{color:rgba(255,255,255,0.75);font-size:12px;margin-top:10px;line-height:1.6;text-align:left;background:rgba(0,0,0,0.3);padding:11px;border-radius:12px;border:1px solid rgba(255,255,255,0.07)}
+.btn2{width:100%;padding:13px;border-radius:14px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);color:#fff;font-weight:700;margin-top:10px}
+.btn2.primary{background:linear-gradient(180deg,#ff7a00,#ff3c00);color:#fff;font-weight:900;font-size:16px;border-color:#fff}
+#msg{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);z-index:12;pointer-events:none;opacity:0;transition:all 0.3s}
+#msg.show{opacity:1;transform:translate(-50%,-50%) scale(1.1)}
+.msgInner{background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.2);padding:9px 18px;border-radius:999px;color:#fff;font-weight:800;font-size:13px}
+.msgInner.ok{background:linear-gradient(135deg,#a6ff00,#ff7a00);color:#000}
+.msgInner.bad{background:linear-gradient(135deg,#ff2a6d,#ff7a00)}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="c"></canvas>
+<div id="top">
+<div class="pill"><span class="s">LV</span><span id="lv">1</span></div>
+<div class="pill"><span class="s">SCORE</span><span id="sc">0</span></div>
+<div class="pill"><span class="s">BALLS</span><span id="bl">5</span></div>
+<div class="pill" id="comboWrap" style="display:none;background:linear-gradient(135deg,#ff7a00,#ff3c00)"><span id="comboTxt">x2</span></div>
+</div>
+<div id="combo"><div class="comboBox" id="comboBox">SWISH! x2</div></div>
+<div id="xSlider"><span style="font-size:16px">⬅️</span><div id="xTrack"><div id="xThumb"></div></div><span style="font-size:16px">➡️</span></div>
+<div id="bottom">
+<div id="moveHint">👆 BALL ke left-right drag koro position change korte • Upore drag kore shoot</div>
+<div id="powerRow"><span style="color:rgba(255,255,255,0.5);font-size:10px;font-weight:700">POWER</span><div id="track"><div id="fill"></div></div><span id="pct" style="color:#fff;font-weight:800;font-size:12px;min-width:36px">0%</span></div>
+<button id="btn">BALL DRAG KORO - UP TO SHOOT</button>
+</div>
+<div id="msg"><div class="msgInner" id="msgInner">SCORE!</div></div>
+<div id="overlay"></div>
+</div>
+<script>
+(function(){
+var canvas=document.getElementById('c');
+var ctx=canvas.getContext('2d');
+var W=0,H=0,CH=0;
+function resize(){
+  W=window.innerWidth; H=window.innerHeight;
+  CH=H-142;
+  canvas.width=W; canvas.height=CH;
+  canvas.style.height=CH+'px';
+}
+window.addEventListener('resize',resize); resize();
+function rand(a,b){return a+Math.random()*(b-a);}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function dist2(ax,ay,bx,by){var dx=ax-bx,dy=ay-by;return dx*dx+dy*dy;}
+
+var game={
+  level:1, score:0, balls:5, maxBalls:5, combo:0,
+  ball:null, hoop:null, backboard:null,
+  state:'HOME',
+  aimStart:null, aimNow:null, power:0, angle:0, canLaunch:false,
+  traj:[], particles:[], time:0, gravity:0.28, maxPower:17,
+  mode:'IDLE' // IDLE, MOVING_X, AIMING
+};
+
+function genLevel(lv){
+  var hoopW = Math.max(62, 94 - lv*1.6);
+  var dist;
+  if(lv<=3) dist= 185 + lv*12;
+  else if(lv<=6) dist= 220 + lv*14;
+  else dist= Math.min(360, 250 + lv*12);
+  var ballX=W*0.5, ballY=CH-62;
+  var hoopX= W*0.5 + rand(- (lv<=3? W*0.06 : W*0.18), (lv<=3? W*0.06 : W*0.18));
+  hoopX=clamp(hoopX, hoopW/2+28, W-hoopW/2-28);
+  var hoopY= ballY - dist;
+  var backboard={x:hoopX, y:hoopY-20, w:10, h:76};
+  return {
+    ball:{x:ballX,y:ballY},
+    hoop:{x:hoopX,y:hoopY,w:hoopW,h:12, moving: lv>=6 && Math.random()<0.5, baseX:hoopX, range:rand(55,105), speed:rand(0.5,0.95)},
+    backboard:backboard,
+    balls: lv<=3?6:5,
+    gravity: 0.26 + (lv-1)*0.007,
+    maxPower: 15.5 + lv*0.45
+  };
+}
+
+function loadLevel(lv){
+  var data=genLevel(lv);
+  game.level=lv;
+  game.balls=data.balls; game.maxBalls=data.balls;
+  game.gravity=data.gravity; game.maxPower=data.maxPower;
+  game.ball={x:data.ball.x,y:data.ball.y, ox:data.ball.x, oy:data.ball.y, vx:0,vy:0, r:18, launched:false, trail:[], rotation:0, targetX:data.ball.x};
+  game.hoop={x:data.hoop.x,y:data.hoop.y,w:data.hoop.w,h:data.hoop.h, moving:data.hoop.moving, baseX:data.hoop.baseX, range:data.hoop.range, speed:data.hoop.speed, scored:false};
+  game.backboard=data.backboard;
+  game.particles=[]; game.state='AIMING'; game.power=0; game.canLaunch=false; game.traj=[]; game.mode='IDLE';
+  updateHUD(); updateXSlider();
+  showMsg(lv===1?'TUTORIAL - BALL MOVE + SHOOT':'LEVEL '+lv, 'ok', 900);
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('btn').textContent='BALL ke left-right move koro, upore drag kore shoot';
+  document.getElementById('btn').disabled=true;
+}
+
+function showMsg(txt,type,dur){
+  var el=document.getElementById('msg');
+  var box=document.getElementById('msgInner');
+  box.textContent=txt; box.className='msgInner '+(type||'');
+  el.classList.add('show');
+  setTimeout(function(){ el.classList.remove('show'); }, dur||800);
+}
+function updateHUD(){
+  document.getElementById('lv').textContent=game.level;
+  document.getElementById('sc').textContent=game.score;
+  document.getElementById('bl').textContent=game.balls;
+  document.getElementById('fill').style.width=Math.floor(game.power*100)+'%';
+  document.getElementById('pct').textContent=Math.floor(game.power*100)+'%';
+  var comboEl=document.getElementById('comboWrap');
+  if(game.combo>=2){ comboEl.style.display='flex'; document.getElementById('comboTxt').textContent='x'+game.combo; }
+  else comboEl.style.display='none';
+}
+function updateXSlider(){
+  var pct= (game.ball.targetX / W);
+  document.getElementById('xThumb').style.left=(pct*100)+'%';
+}
+
+var aiming=false, movingX=false;
+var dragStartTime=0;
+var startX=0;
+
+canvas.addEventListener('touchstart',function(e){
+  if(game.state!=='AIMING') return;
+  var t=e.touches[0];
+  var rect=canvas.getBoundingClientRect();
+  var x=t.clientX-rect.left, y=t.clientY-rect.top;
+  if(dist2(x,y,game.ball.x,game.ball.y)<130*130){
+    aiming=true;
+    game.aimStart={x:x,y:y};
+    game.aimNow={x:x,y:y};
+    dragStartTime=performance.now();
+    startX=game.ball.targetX;
+    game.mode='IDLE';
+  }
+  e.preventDefault();
+},{passive:false});
+
+canvas.addEventListener('touchmove',function(e){
+  if(!aiming) return;
+  var t=e.touches[0];
+  var rect=canvas.getBoundingClientRect();
+  var x=t.clientX-rect.left, y=t.clientY-rect.top;
+  game.aimNow={x:x,y:y};
+  var dx=x-game.aimStart.x;
+  var dy=y-game.aimStart.y;
+  var adx=Math.abs(dx), ady=Math.abs(dy);
+
+  // If horizontal drag bigger than vertical and still near ground -> move X
+  if(game.mode==='IDLE'){
+    if(adx>12 || ady>12){
+      if(adx>ady && Math.abs(game.ball.y - game.aimStart.y)<60){
+        game.mode='MOVING_X';
+      } else {
+        game.mode='AIMING';
+      }
+    }
+  }
+
+  if(game.mode==='MOVING_X'){
+    // Move ball left-right on X axis - SMOOTH
+    var newTarget= clamp(startX + dx, 50, W-50);
+    game.ball.targetX=newTarget;
+    // Smooth lerp for buttery movement
+    game.ball.x += (game.ball.targetX - game.ball.x)*0.28;
+    game.ball.ox=game.ball.targetX;
+    updateXSlider();
+    document.getElementById('btn').textContent='⬅️ LEFT-RIGHT MOVE ➡️ - UP DRAG TO SHOOT';
+  } else if(game.mode==='AIMING'){
+    var dist=Math.hypot(dx,dy);
+    var time=(performance.now()-dragStartTime)/1000;
+    var speed= dist / Math.max(time,0.05);
+    var distPower=clamp(dist/175,0,1);
+    var speedPower=clamp(speed/950,0,1);
+    game.power= distPower*0.65 + speedPower*0.35;
+    game.power=clamp(game.power,0,1);
+
+    // Auto-aim assist for easy levels (LV1-4) - slight magnet to hoop
+    var rawAngle=Math.atan2(dy,dx);
+    if(game.level<=4){
+      var toHoop=Math.atan2(game.hoop.y-game.ball.y, game.hoop.x-game.ball.x);
+      var diff=toHoop-rawAngle;
+      // normalize diff to -PI..PI
+      while(diff>Math.PI) diff-=Math.PI*2;
+      while(diff<-Math.PI) diff+=Math.PI*2;
+      if(Math.abs(diff)<0.7){
+        rawAngle = rawAngle + diff*0.28; // 28% assist
+      }
+    }
+    game.angle=rawAngle;
+    game.canLaunch= dist>18 && dy<-8; // must drag somewhat up
+
+    calcTraj();
+    updateHUD();
+    var btn=document.getElementById('btn');
+    if(game.canLaunch){
+      btn.textContent='POWER '+Math.floor(game.power*100)+'% - RELEASE TO SHOOT';
+      btn.disabled=false;
+    }
+  }
+  e.preventDefault();
+},{passive:false});
+
+canvas.addEventListener('touchend',function(e){
+  if(!aiming) return;
+  var wasMoving= game.mode==='MOVING_X';
+  aiming=false;
+  if(game.mode==='AIMING' && game.canLaunch){
+    launch();
+  } else if(wasMoving){
+    game.ball.x=game.ball.targetX;
+    game.power=0; game.traj=[];
+    document.getElementById('btn').textContent='BALL POSITIONED - NOW DRAG UP TO SHOOT';
+    document.getElementById('btn').disabled=true;
+  } else {
+    game.power=0; game.traj=[]; updateHUD();
+  }
+  game.mode='IDLE';
+  e.preventDefault();
+},{passive:false});
+
+// X Slider drag
+var xSlider=document.getElementById('xTrack');
+var xDragging=false;
+function xPosFromEvent(e){
+  var t=e.touches?e.touches[0]:e;
+  var rect=xSlider.getBoundingClientRect();
+  var x=t.clientX-rect.left;
+  var pct=clamp(x/rect.width,0,1);
+  return pct;
+}
+xSlider.addEventListener('touchstart',function(e){
+  if(game.state!=='AIMING') return;
+  xDragging=true;
+  var pct=xPosFromEvent(e);
+  game.ball.targetX=pct*W;
+  game.ball.x+=(game.ball.targetX-game.ball.x)*0.5;
+  game.ball.ox=game.ball.targetX;
+  updateXSlider();
+  e.preventDefault();
+},{passive:false});
+xSlider.addEventListener('touchmove',function(e){
+  if(!xDragging) return;
+  var pct=xPosFromEvent(e);
+  game.ball.targetX=clamp(pct*W,50,W-50);
+  game.ball.x+=(game.ball.targetX-game.ball.x)*0.35;
+  game.ball.ox=game.ball.targetX;
+  updateXSlider();
+  e.preventDefault();
+},{passive:false});
+xSlider.addEventListener('touchend',function(e){
+  xDragging=false;
+  if(game.ball) game.ball.x=game.ball.targetX;
+  e.preventDefault();
+},{passive:false});
+
+document.getElementById('btn').addEventListener('touchstart',function(e){ e.preventDefault(); if(game.canLaunch) launch(); },{passive:false});
+document.getElementById('btn').addEventListener('click',function(){ if(game.canLaunch) launch(); });
+
+function calcTraj(){
+  if(game.mode!=='AIMING' || !game.canLaunch){ game.traj=[]; return; }
+  var pts=[];
+  var v0= 5.5 + game.power*game.maxPower;
+  var vx=Math.cos(game.angle)*v0;
+  var vy=Math.sin(game.angle)*v0;
+  var x=game.ball.x, y=game.ball.y;
+  var g=game.gravity;
+  for(var i=0;i<36;i++){
+    x+=vx; y+=vy; vy+=g; vx*=0.998;
+    pts.push({x:x,y:y});
+    if(y>CH+60 || x<-60 || x>W+60) break;
+  }
+  game.traj=pts;
+}
+
+function launch(){
+  if(!game.canLaunch || game.state!=='AIMING') return;
+  var v0= 5.5 + game.power*game.maxPower;
+  game.ball.vx=Math.cos(game.angle)*v0;
+  game.ball.vy=Math.sin(game.angle)*v0;
+  game.ball.launched=true;
+  game.state='LAUNCHED';
+  game.traj=[]; game.canLaunch=false;
+  document.getElementById('btn').disabled=true;
+  document.getElementById('btn').textContent='BALL IN AIR...';
+  try{ if(navigator.vibrate) navigator.vibrate(20); }catch(e){}
+}
+
+function scoreBasket(isSwish){
+  var base=100;
+  var swishBonus= isSwish? 60:0;
+  var distBonus=Math.floor(clamp(dist2(game.ball.ox,game.ball.oy,game.hoop.x,game.hoop.y)/550,0,65));
+  var comboBonus=game.combo*16;
+  var gain=base+swishBonus+distBonus+comboBonus;
+  if(game.combo>=2) gain=Math.floor(gain*(1+game.combo*0.13));
+  game.score+=gain;
+  game.combo++;
+  if(game.combo>=2){
+    document.getElementById('comboBox').textContent=(isSwish?'SWISH! ':'SCORE! ')+'x'+game.combo;
+    document.getElementById('combo').classList.add('show');
+    setTimeout(function(){ document.getElementById('combo').classList.remove('show'); }, 850);
+  }
+  showMsg('+'+gain+(isSwish?' SWISH!':'')+' '+(game.combo>=2?'x'+game.combo:''), 'ok', 950);
+  for(var i=0;i<20;i++){
+    game.particles.push({x:game.hoop.x+rand(-game.hoop.w/2,game.hoop.w/2), y:game.hoop.y+10, vx:rand(-95,95), vy:rand(-150,-25), life:rand(0.5,0.95), t:0, r:rand(3,5), color:['#ff7a00','#ff3c00','#ffe600'][i%3]});
+  }
+  try{ if(navigator.vibrate) navigator.vibrate([30,45,65]); }catch(e){}
+  setTimeout(function(){
+    if(game.balls-1<=0){
+      game.level++;
+      loadLevel(game.level);
+    } else {
+      game.balls--;
+      resetBall();
+    }
+  }, 850);
+}
+
+function miss(){
+  game.balls--;
+  game.combo=0;
+  updateHUD();
+  showMsg('MISS - TRY AGAIN', 'bad', 650);
+  try{ if(navigator.vibrate) navigator.vibrate(40); }catch(e){}
+  if(game.balls<=0){
+    setTimeout(function(){ gameOver(); }, 500);
+  } else {
+    setTimeout(function(){ resetBall(); }, 500);
+  }
+}
+
+function resetBall(){
+  game.ball.x=game.ball.targetX; game.ball.y=game.ball.oy;
+  game.ball.vx=0; game.ball.vy=0; game.ball.launched=false; game.ball.trail=[]; game.ball.rotation=0;
+  game.hoop.scored=false;
+  game.state='AIMING'; game.power=0; updateHUD(); updateXSlider();
+  document.getElementById('btn').textContent='DRAG BALL - X MOVE + UP SHOOT';
+  document.getElementById('btn').disabled=true;
+  game.traj=[];
+}
+
+function gameOver(){
+  var ov=document.getElementById('overlay');
+  ov.style.display='flex';
+  ov.innerHTML='<div class="card"><h1><span>GAME OVER</span></h1><p>Score: '+game.score+'<br>Level: '+game.level+'<br>Out of balls!</p><button class="btn2 primary" id="retryBtn">RETRY LEVEL '+game.level+'</button><button class="btn2" id="homeBtn">HOME</button></div>';
+  document.getElementById('retryBtn').onclick=function(){ ov.style.display='none'; loadLevel(game.level); };
+  document.getElementById('homeBtn').onclick=function(){ showHome(); };
+}
+
+function showHome(){
+  game.state='HOME';
+  var ov=document.getElementById('overlay');
+  ov.style.display='flex';
+  ov.innerHTML='<div class="card"><h1>BASKET<span>BALL</span></h1><div class="sub">SMOOTH • X-MOVE • USER FRIENDLY</div><p><b style="color:#ff7a00">New Controls:</b><br>• <b>Ball ke left-right drag</b> koro position change korte<br>• <b>X slider</b> diyeo move kora jay (niche)<br>• <b>Upore drag</b> kore shoot koro<br>• Auto-aim assist LV1-4 e<br>• Fast swipe = more power<br><br><b>Super Smooth 60FPS</b><br>LV1: Huge hoop, close<br>LV4+: Moving hoop</p><button class="btn2 primary" id="playBtn">▶ PLAY SMOOTH BASKETBALL</button></div>';
+  document.getElementById('playBtn').onclick=function(){ loadLevel(1); };
+}
+
+function update(dt){
+  game.time+=dt;
+  if(game.hoop && game.hoop.moving){
+    game.hoop.x=game.hoop.baseX + Math.sin(game.time*game.hoop.speed)*game.hoop.range;
+    game.hoop.x=clamp(game.hoop.x, game.hoop.w/2+22, W-game.hoop.w/2-22);
+    game.backboard.x=game.hoop.x;
+  }
+  // Smooth ball X lerp when moving
+  if(game.state==='AIMING' && game.mode!=='AIMING'){
+    game.ball.x += (game.ball.targetX - game.ball.x)*0.22;
+  }
+
+  if(game.state==='LAUNCHED' && game.ball.launched){
+    var b=game.ball;
+    b.vy+=game.gravity;
+    b.vx*=0.994; b.vy*=0.994;
+    b.x+=b.vx; b.y+=b.vy;
+    b.rotation+=b.vx*0.05;
+    b.trail.push({x:b.x,y:b.y,t:0}); if(b.trail.length>7) b.trail.shift();
+    for(var j=0;j<b.trail.length;j++) b.trail[j].t+=dt;
+
+    if(b.x-b.r<0){ b.x=b.r; b.vx=Math.abs(b.vx)*0.65; }
+    if(b.x+b.r>W){ b.x=W-b.r; b.vx=-Math.abs(b.vx)*0.65; }
+
+    var bb=game.backboard;
+    if(b.x+b.r>bb.x-bb.w/2 && b.x-b.r<bb.x+bb.w/2 && b.y+b.r>bb.y-bb.h/2 && b.y-b.r<bb.y+bb.h/2){
+      if(b.x<bb.x){ b.x=bb.x-bb.w/2-b.r-1; b.vx=-Math.abs(b.vx)*0.7; }
+      else { b.x=bb.x+bb.w/2+b.r+1; b.vx=Math.abs(b.vx)*0.7; }
+    }
+
+    var hoop=game.hoop;
+    var leftRimX=hoop.x-hoop.w/2, rightRimX=hoop.x+hoop.w/2, rimY=hoop.y;
+    var d2L=dist2(b.x,b.y,leftRimX,rimY);
+    if(d2L < (b.r+6)*(b.r+6) && b.y<rimY+10 && !hoop.scored){
+      var dx=b.x-leftRimX, dy=b.y-rimY, d=Math.sqrt(d2L)||1;
+      b.x=leftRimX+dx/d*(b.r+6); b.y=rimY+dy/d*(b.r+6);
+      var dot=b.vx*dx/d + b.vy*dy/d;
+      b.vx-=2*dot*dx/d*0.6; b.vy-=2*dot*dy/d*0.6;
+    }
+    var d2R=dist2(b.x,b.y,rightRimX,rimY);
+    if(d2R < (b.r+6)*(b.r+6) && b.y<rimY+10 && !hoop.scored){
+      var dx=b.x-rightRimX, dy=b.y-rimY, d=Math.sqrt(d2R)||1;
+      b.x=rightRimX+dx/d*(b.r+6); b.y=rimY+dy/d*(b.r+6);
+      var dot=b.vx*dx/d + b.vy*dy/d;
+      b.vx-=2*dot*dx/d*0.6; b.vy-=2*dot*dy/d*0.6;
+    }
+
+    if(!hoop.scored && b.vy>0){
+      var insideX= b.x>hoop.x-hoop.w/2+8 && b.x<hoop.x+hoop.w/2-8;
+      var crossing= b.y>hoop.y-2 && b.y<hoop.y+14 && b.y - b.vy < hoop.y+2;
+      if(insideX && crossing){
+        hoop.scored=true;
+        var isSwish= Math.abs(b.vx)<2.8;
+        scoreBasket(isSwish);
+      }
+    }
+
+    if(b.y+b.r>CH-4){
+      b.y=CH-4-b.r;
+      b.vy=-Math.abs(b.vy)*0.44;
+      b.vx*=0.84;
+      if(Math.abs(b.vy)<1 && Math.abs(b.vx)<1){
+        if(!hoop.scored) miss();
+      }
+    }
+    if(b.y>CH+120 || b.x<-120 || b.x>W+120){
+      if(!hoop.scored) miss();
+    }
+  }
+
+  for(var p=game.particles.length-1;p>=0;p--){
+    var pa=game.particles[p];
+    pa.t+=dt; pa.x+=pa.vx*dt; pa.y+=pa.vy*dt; pa.vy+=240*dt; pa.life-=dt;
+    if(pa.life<=0) game.particles.splice(p,1);
+  }
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,CH);
+  ctx.fillStyle='rgba(255,122,0,0.07)'; ctx.fillRect(0,CH-28,W,28);
+  ctx.strokeStyle='rgba(255,122,0,0.16)'; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(0,CH-28); ctx.lineTo(W,CH-28); ctx.stroke();
+
+  if(game.backboard){
+    var bb=game.backboard;
+    ctx.fillStyle='#e8e8e8'; ctx.strokeStyle='#a0a0a0'; ctx.lineWidth=2;
+    ctx.fillRect(bb.x-bb.w/2, bb.y-bb.h/2, bb.w, bb.h); ctx.strokeRect(bb.x-bb.w/2, bb.y-bb.h/2, bb.w, bb.h);
+    ctx.strokeStyle='#ff3c00'; ctx.lineWidth=1.5; ctx.strokeRect(bb.x-14, bb.y+8, 28, 20);
+  }
+
+  if(game.hoop){
+    var h=game.hoop;
+    ctx.fillStyle='rgba(255,255,255,0.14)'; ctx.fillRect(h.x-3, h.y, 6, CH-h.y-28);
+    ctx.fillStyle='rgba(0,0,0,0.32)'; ctx.beginPath(); ctx.ellipse(h.x, h.y+2, h.w/2, 4, 0,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#ff3c00'; ctx.lineWidth=5; ctx.lineCap='round'; ctx.shadowBlur=10; ctx.shadowColor='#ff3c00';
+    ctx.beginPath(); ctx.moveTo(h.x-h.w/2, h.y); ctx.lineTo(h.x+h.w/2, h.y); ctx.stroke(); ctx.shadowBlur=0;
+    ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1.2;
+    for(var i=0;i<6;i++){
+      var nx= h.x - h.w/2 + (h.w/5)*i;
+      var sway= Math.sin(game.time*2 + i)* (h.scored? 4:1);
+      ctx.beginPath(); ctx.moveTo(nx, h.y); ctx.lineTo(nx+sway, h.y+28); ctx.stroke();
+    }
+    ctx.beginPath(); ctx.moveTo(h.x-h.w/2, h.y+14); ctx.lineTo(h.x+h.w/2, h.y+14); ctx.stroke();
+  }
+
+  if(game.traj.length>1){
+    ctx.setLineDash([7,9]);
+    ctx.strokeStyle='rgba(255,255,255,0.36)'; ctx.lineWidth=2;
+    ctx.beginPath();
+    for(var t=0;t<game.traj.length;t++){
+      var pt=game.traj[t];
+      if(t===0) ctx.moveTo(pt.x,pt.y); else ctx.lineTo(pt.x,pt.y);
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+    for(var t=0;t<game.traj.length;t+=5){
+      var pt=game.traj[t];
+      ctx.fillStyle= t%10===0? '#ff7a00':'rgba(255,255,255,0.4)';
+      ctx.beginPath(); ctx.arc(pt.x,pt.y, t%10===0?3.8:2,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  if(game.ball){
+    var b=game.ball;
+    for(var i=0;i<b.trail.length;i++){
+      var tr=b.trail[i];
+      ctx.globalAlpha=0.26*(1-tr.t);
+      ctx.fillStyle='#ff7a00';
+      ctx.beginPath(); ctx.arc(tr.x,tr.y, b.r*(1-tr.t*0.4),0,Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    ctx.save(); ctx.translate(b.x,b.y); ctx.rotate(b.rotation);
+    var grad=ctx.createRadialGradient(-b.r*0.3,-b.r*0.3,b.r*0.2,0,0,b.r);
+    grad.addColorStop(0,'#ffb066'); grad.addColorStop(0.4,'#ff7a00'); grad.addColorStop(1,'#b33c00');
+    ctx.fillStyle=grad; ctx.shadowBlur=14; ctx.shadowColor='#ff7a00';
+    ctx.beginPath(); ctx.arc(0,0,b.r,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.2; ctx.globalAlpha=0.55;
+    ctx.beginPath(); ctx.arc(0,0,b.r,0,Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-b.r,0); ctx.lineTo(b.r,0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,-b.r); ctx.lineTo(0,b.r); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0,0,b.r*0.55,0,Math.PI*2); ctx.stroke();
+    ctx.globalAlpha=1; ctx.restore();
+
+    if(game.mode==='AIMING' && game.canLaunch){
+      var alen=36+game.power*32;
+      var ex=b.x+Math.cos(game.angle)*alen;
+      var ey=b.y+Math.sin(game.angle)*alen;
+      ctx.strokeStyle='rgba(255,255,255,0.62)'; ctx.lineWidth=2.5;
+      ctx.beginPath(); ctx.moveTo(b.x,b.y); ctx.lineTo(ex,ey); ctx.stroke();
+      ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(ex,ey,5,0,Math.PI*2); ctx.fill();
+    }
+    // Ground indicator for X move
+    if(game.state==='AIMING'){
+      ctx.fillStyle='rgba(255,122,0,0.18)'; ctx.beginPath(); ctx.ellipse(b.x, CH-6, 22, 6, 0,0,Math.PI*2); ctx.fill();
+    }
+  }
+
+  for(var p=0;p<game.particles.length;p++){
+    var pa=game.particles[p];
+    ctx.globalAlpha=pa.life;
+    ctx.fillStyle=pa.color;
+    ctx.beginPath(); ctx.arc(pa.x,pa.y,pa.r*pa.life,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+
+var last=performance.now();
+function loop(now){
+  var dt=Math.min(0.033,(now-last)/1000);
+  last=now;
+  if(game.state==='AIMING' || game.state==='LAUNCHED'){
+    update(dt);
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+loop(performance.now());
+showHome();
+
+})();
+</script>
+</body>
+</html>

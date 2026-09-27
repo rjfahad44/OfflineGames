@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>BALL DROP - Real Physics Easy</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:none;user-select:none}
+html,body{width:100%;height:100%;overflow:hidden;background:#0a0e1a;position:fixed;font-family:-apple-system,BlinkMacSystemFont,sans-serif}
+#wrap{position:relative;width:100vw;height:100vh;display:flex;flex-direction:column}
+canvas{flex:1;display:block;width:100%;background:radial-gradient(120% 70% at 50% 0%,#1a2450 0%,#0a0e1a 70%)}
+#top{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:10px;z-index:5;pointer-events:none}
+.pill{background:rgba(15,22,45,0.9);border:1px solid rgba(255,255,255,0.15);border-radius:999px;padding:6px 12px;color:#fff;font-weight:800;font-size:12px;display:flex;gap:6px;align-items:center}
+#bottom{padding:12px;background:linear-gradient(180deg,transparent,rgba(0,0,0,0.55));z-index:5}
+#powerRow{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+#track{flex:1;height:12px;background:rgba(255,255,255,0.12);border-radius:999px;overflow:hidden;border:1px solid rgba(255,255,255,0.1)}
+#fill{height:100%;width:0%;background:linear-gradient(90deg,#00f5ff,#a6ff00,#ffe600)}
+#btn{width:100%;height:62px;border-radius:18px;border:none;background:linear-gradient(180deg,#00f5ff,#00a8b0);color:#001419;font-weight:900;font-size:17px;letter-spacing:1px;box-shadow:0 8px 24px rgba(0,245,255,0.4)}
+#btn:disabled{opacity:0.35}
+#btn:active{transform:scale(0.97)}
+#overlay{position:absolute;inset:0;z-index:20;background:rgba(5,8,20,0.96);display:flex;align-items:center;justify-content:center;padding:20px}
+.card{width:min(400px,92vw);background:linear-gradient(180deg,#1c264e,#0e1326);border:1px solid rgba(255,255,255,0.12);border-radius:20px;padding:22px;text-align:center}
+.card h1{color:#fff;font-size:32px;line-height:0.9}
+.card h1 span{color:#00f5ff;display:block;text-shadow:0 0 12px #00f5ff}
+.card p{color:rgba(255,255,255,0.75);font-size:12px;margin-top:10px;line-height:1.5;text-align:left;background:rgba(0,0,0,0.3);padding:10px;border-radius:10px}
+.btn2{width:100%;padding:13px;border-radius:12px;border:1px solid rgba(255,255,255,0.15);background:rgba(255,255,255,0.08);color:#fff;font-weight:700;margin-top:10px}
+.btn2.primary{background:linear-gradient(180deg,#00f5ff,#00a8b0);color:#001419;font-weight:900;font-size:16px;border-color:#fff}
+#msg{position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);z-index:10;pointer-events:none;opacity:0;transition:all 0.3s}
+#msg.show{opacity:1;transform:translate(-50%,-50%) scale(1.08)}
+.msgBox{background:rgba(0,0,0,0.7);border:1px solid rgba(255,255,255,0.2);padding:8px 16px;border-radius:999px;color:#fff;font-weight:800;font-size:13px}
+.msgBox.ok{background:linear-gradient(135deg,#a6ff00,#00f5ff);color:#000}
+.msgBox.bad{background:linear-gradient(135deg,#ff2a6d,#ff7a00);color:#fff}
+</style>
+</head>
+<body>
+<div id="wrap">
+<canvas id="c"></canvas>
+<div id="top"><div class="pill">LV <span id="lv">1</span></div><div class="pill">SCORE <span id="sc">0</span></div><div class="pill">TRY <span id="tr">3</span></div><div class="pill" id="comboPill" style="display:none;background:linear-gradient(135deg,#ffe600,#ff7a00);color:#000">x<span id="cb">1</span></div></div>
+<div id="bottom"><div id="powerRow"><span style="color:rgba(255,255,255,0.5);font-size:10px;font-weight:700">POWER</span><div id="track"><div id="fill"></div></div><span id="pct" style="color:#fff;font-weight:800;font-size:12px;min-width:36px">0%</span></div><button id="btn">DRAG BALL TO AIM</button></div>
+<div id="msg"><div class="msgBox" id="msgBox">NICE!</div></div>
+<div id="overlay"></div>
+</div>
+<script>
+(function(){
+var canvas=document.getElementById('c');
+var ctx=canvas.getContext('2d');
+var W=0,H=0,CH=0;
+function resize(){
+  W=window.innerWidth; H=window.innerHeight;
+  CH=H-110;
+  canvas.width=W; canvas.height=CH;
+  canvas.style.height=CH+'px';
+}
+window.addEventListener('resize',resize); resize();
+function rand(a,b){return a+Math.random()*(b-a);}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function dist2(ax,ay,bx,by){var dx=ax-bx,dy=ay-by;return dx*dx+dy*dy;}
+function len(x,y){return Math.hypot(x,y);}
+
+var game={
+  level:1, score:0, attempts:3, maxAtt:3, combo:0,
+  ball:null, bucket:null, obstacles:[],
+  state:'HOME',
+  aimStart:null, aimNow:null, power:0, angle:0, canLaunch:false,
+  traj:[], particles:[], time:0, gravity:0.24,
+  dragStartTime:0, dragVelocity:0
+};
+
+// REAL PHYSICS LEVEL GENERATOR - GUARANTEED SOLVABLE
+function genLevel(lv){
+  // Very easy curve for first 10 levels
+  var easyCurve = [
+    {bw:130, dist:130, obs:0, moving:false}, // LV1 tutorial - huge bucket, very close
+    {bw:120, dist:150, obs:0, moving:false}, // LV2 still huge, close
+    {bw:110, dist:175, obs:1, moving:false}, // LV3 introduce 1 platform below
+    {bw:100, dist:195, obs:1, moving:false}, // LV4
+    {bw:95,  dist:215, obs:1, moving:false}, // LV5
+    {bw:88,  dist:235, obs:2, moving:false}, // LV6
+    {bw:82,  dist:255, obs:2, moving:true},  // LV7 moving platform appears
+    {bw:76,  dist:275, obs:2, moving:true},  // LV8
+    {bw:70,  dist:295, obs:3, moving:true},  // LV9
+    {bw:66,  dist:310, obs:3, moving:true},  // LV10
+  ];
+  var cfg;
+  if(lv<=10) cfg=easyCurve[lv-1];
+  else {
+    // Beyond 10, gradually harder but still solvable
+    var extra=lv-10;
+    cfg={
+      bw: Math.max(44, 66 - extra*1.8),
+      dist: Math.min(380, 310 + extra*10),
+      obs: Math.min(5, 3+Math.floor(extra*0.4)),
+      moving: true
+    };
+  }
+
+  var ballX=W*0.5, ballY=CH-65;
+  // Bucket X always near center for easy levels, slightly more random later
+  var maxOffset = lv<=5? W*0.12 : lv<=8? W*0.22 : W*0.30;
+  var bucketX=clamp(ballX + rand(-maxOffset, maxOffset), cfg.bw/2+20, W-cfg.bw/2-20);
+  var bucketY=ballY - cfg.dist;
+
+  var obs=[];
+  // Generate obstacles that NEVER block direct path completely
+  for(var i=0;i<cfg.obs;i++){
+    var isMoving = cfg.moving && i>=1;
+    // Place obstacles to the SIDE, not directly between ball and bucket
+    var side = (i%2===0)? -1: 1;
+    var ox, oy;
+    if(lv<=5){
+      // Easy: obstacles far to sides, below bucket
+      ox= bucketX + side*rand(90, 160);
+      oy= rand(bucketY+80, ballY-60);
+    } else {
+      // Medium: obstacles can be closer but still leave gap
+      ox= rand(60, W-60);
+      // Avoid placing directly on line ball->bucket
+      var lineXAtY = function(y){
+        var t=(y-ballY)/(bucketY-ballY);
+        return ballX + (bucketX-ballX)*t;
+      };
+      oy= rand(bucketY+60, ballY-50);
+      var lx=lineXAtY(oy);
+      if(Math.abs(ox-lx)<55){
+        ox+= (ox<lx? -70: 70);
+      }
+    }
+    ox=clamp(ox, 40, W-40);
+    oy=clamp(oy, 100, CH-80);
+
+    obs.push({
+      x:ox, y:oy, w: rand(70,115), h:12,
+      baseX:ox, baseY:oy,
+      range: isMoving? rand(50,95):0,
+      speed: isMoving? rand(0.6,1.1):0,
+      phase: rand(0,6.28),
+      moving:isMoving
+    });
+  }
+
+  return {
+    ball:{x:ballX,y:ballY},
+    bucket:{x:bucketX,y:bucketY,w:cfg.bw,h:36,moving: lv>=8 && Math.random()<0.4, baseX:bucketX, range:rand(50,90), speed:rand(0.5,0.9)},
+    obstacles:obs,
+    attempts: lv<=3?4:3,
+    gravity: 0.22 + (lv-1)*0.006, // very low gravity early, increases slowly
+    maxPower: 14 + lv*0.35 // max velocity increases with level, so later levels still reachable
+  };
+}
+
+function loadLevel(lv){
+  var data=genLevel(lv);
+  game.level=lv;
+  game.attempts=data.attempts; game.maxAtt=data.attempts;
+  game.gravity=data.gravity;
+  game.maxPower=data.maxPower;
+  game.ball={x:data.ball.x,y:data.ball.y, ox:data.ball.x, oy:data.ball.y, vx:0,vy:0, r:15, launched:false, trail:[]};
+  game.bucket={x:data.bucket.x,y:data.bucket.y,w:data.bucket.w,h:data.bucket.h, moving:data.bucket.moving, baseX:data.bucket.baseX, range:data.bucket.range, speed:data.bucket.speed};
+  game.obstacles=data.obstacles;
+  game.particles=[];
+  game.state='AIMING';
+  game.power=0; game.canLaunch=false; game.traj=[];
+  updateHUD();
+  showMsg(lv===1?'TUTORIAL - DRAG UP TO SHOOT':'LEVEL '+lv, 'ok', 900);
+  document.getElementById('overlay').style.display='none';
+  document.getElementById('btn').textContent='DRAG BALL UPWARDS TO AIM';
+  document.getElementById('btn').disabled=true;
+}
+
+function showMsg(txt,type,dur){
+  var el=document.getElementById('msg');
+  var box=document.getElementById('msgBox');
+  box.textContent=txt; box.className='msgBox '+(type||'');
+  el.classList.add('show');
+  setTimeout(function(){ el.classList.remove('show'); }, dur||800);
+}
+function updateHUD(){
+  document.getElementById('lv').textContent=game.level;
+  document.getElementById('sc').textContent=game.score;
+  document.getElementById('tr').textContent=game.attempts;
+  document.getElementById('fill').style.width=Math.floor(game.power*100)+'%';
+  document.getElementById('pct').textContent=Math.floor(game.power*100)+'%';
+  var comboEl=document.getElementById('comboPill');
+  if(game.combo>=2){ comboEl.style.display='flex'; document.getElementById('cb').textContent=game.combo; }
+  else comboEl.style.display='none';
+}
+
+// INPUT - Real physics based on drag speed
+var aiming=false;
+canvas.addEventListener('touchstart',function(e){
+  if(game.state!=='AIMING') return;
+  var t=e.touches[0];
+  var rect=canvas.getBoundingClientRect();
+  var x=t.clientX-rect.left, y=t.clientY-rect.top;
+  var d2=dist2(x,y,game.ball.x,game.ball.y);
+  if(d2<110*110){
+    aiming=true;
+    game.aimStart={x:x,y:y};
+    game.aimNow={x:x,y:y};
+    game.dragStartTime=performance.now();
+    game.dragVelocity=0;
+  }
+  e.preventDefault();
+},{passive:false});
+
+canvas.addEventListener('touchmove',function(e){
+  if(!aiming) return;
+  var t=e.touches[0];
+  var rect=canvas.getBoundingClientRect();
+  var x=t.clientX-rect.left, y=t.clientY-rect.top;
+  game.aimNow={x:x,y:y};
+
+  var dx=x - game.aimStart.x;
+  var dy=y - game.aimStart.y;
+  var dist=Math.hypot(dx,dy);
+  var time=(performance.now()-game.dragStartTime)/1000;
+  var speed= dist / Math.max(time,0.05); // pixels per second
+
+  // Real physics: power based on BOTH distance and drag speed
+  var distPower=clamp(dist/180,0,1);
+  var speedPower=clamp(speed/900,0,1);
+  // Combine: 70% distance, 30% speed - so fast swipe = more power
+  game.power= distPower*0.7 + speedPower*0.3;
+  game.power=clamp(game.power,0,1);
+  game.angle=Math.atan2(dy,dx);
+  game.canLaunch= dist>18;
+
+  // Store for trajectory calc
+  game.dragVelocity=speed;
+
+  calcTraj();
+  updateHUD();
+  var btn=document.getElementById('btn');
+  if(game.canLaunch){
+    btn.textContent='POWER '+Math.floor(game.power*100)+'% - RELEASE TO SHOOT';
+    btn.disabled=false;
+  } else {
+    btn.textContent='DRAG FARTHER FOR MORE POWER';
+  }
+  e.preventDefault();
+},{passive:false});
+
+canvas.addEventListener('touchend',function(e){
+  if(!aiming) return;
+  aiming=false;
+  if(game.canLaunch){
+    launch();
+  } else {
+    game.power=0; game.traj=[]; updateHUD();
+  }
+  e.preventDefault();
+},{passive:false});
+
+document.getElementById('btn').addEventListener('touchstart',function(e){ e.preventDefault(); if(game.canLaunch) launch(); },{passive:false});
+document.getElementById('btn').addEventListener('click',function(){ if(game.canLaunch) launch(); });
+
+function calcTraj(){
+  if(!aiming || !game.canLaunch){ game.traj=[]; return; }
+  var pts=[];
+  // REAL PHYSICS: initial velocity based on power * maxPower (maxPower grows with level)
+  var v0 = 6 + game.power * game.maxPower; // base 6 + up to maxPower
+  var vx=Math.cos(game.angle)*v0;
+  var vy=Math.sin(game.angle)*v0;
+  var x=game.ball.x, y=game.ball.y;
+  var g=game.gravity;
+  for(var i=0;i<36;i++){
+    x+=vx; y+=vy; vy+=g; vx*=0.998; vy*=0.998;
+    pts.push({x:x,y:y});
+    if(y>CH+60 || x<-50 || x>W+50) break;
+  }
+  game.traj=pts;
+}
+
+function launch(){
+  if(!game.canLaunch || game.state!=='AIMING') return;
+  var v0 = 6 + game.power * game.maxPower;
+  game.ball.vx=Math.cos(game.angle)*v0;
+  game.ball.vy=Math.sin(game.angle)*v0;
+  game.ball.launched=true;
+  game.state='LAUNCHED';
+  game.traj=[]; game.canLaunch=false;
+  document.getElementById('btn').disabled=true;
+  document.getElementById('btn').textContent='BALL FLYING...';
+  try{ if(navigator.vibrate) navigator.vibrate(25); }catch(e){}
+}
+
+function success(){
+  var base=100;
+  var first= game.attempts===game.maxAtt? 80:0;
+  var distBonus=Math.floor(clamp(dist2(game.ball.ox,game.ball.oy,game.bucket.x,game.bucket.y)/500,0,70));
+  var comboBonus=game.combo*18;
+  var gain=base+first+distBonus+comboBonus;
+  if(game.combo>=2) gain=Math.floor(gain*(1+game.combo*0.14));
+  game.score+=gain;
+  game.combo++;
+  showMsg('+'+gain+' '+(first?'FIRST!':'')+' '+(game.combo>=2?'x'+game.combo+' COMBO!':''), 'ok', 1000);
+  for(var i=0;i<22;i++){
+    game.particles.push({x:game.bucket.x+rand(-game.bucket.w/2,game.bucket.w/2), y:game.bucket.y, vx:rand(-130,130), vy:rand(-210,-40), life:rand(0.5,1), t:0, r:rand(3,5), color:['#00f5ff','#a6ff00','#ffe600'][i%3]});
+  }
+  try{ if(navigator.vibrate) navigator.vibrate([40,50,70]); }catch(e){}
+  setTimeout(function(){ loadLevel(game.level+1); }, 1100);
+}
+
+function miss(){
+  game.attempts--;
+  game.combo=0;
+  updateHUD();
+  showMsg('MISS - TRY AGAIN', 'bad', 700);
+  try{ if(navigator.vibrate) navigator.vibrate(45); }catch(e){}
+  if(game.attempts<=0){
+    setTimeout(function(){ gameOver(); }, 600);
+  } else {
+    setTimeout(function(){
+      game.ball.x=game.ball.ox; game.ball.y=game.ball.oy; game.ball.vx=0; game.ball.vy=0; game.ball.launched=false; game.ball.trail=[];
+      game.state='AIMING'; game.power=0; updateHUD();
+      document.getElementById('btn').textContent='DRAG BALL UP TO AIM';
+      document.getElementById('btn').disabled=true;
+    }, 600);
+  }
+}
+
+function gameOver(){
+  var ov=document.getElementById('overlay');
+  ov.style.display='flex';
+  ov.innerHTML='<div class="card"><h1><span>TRY AGAIN</span></h1><p>Score: '+game.score+'<br>Level: '+game.level+'<br>Don\'t worry! This level is 100% possible. Try different angle.</p><button class="btn2 primary" id="retryBtn">RETRY LEVEL '+game.level+'</button><button class="btn2" id="homeBtn">HOME</button></div>';
+  document.getElementById('retryBtn').onclick=function(){ ov.style.display='none'; loadLevel(game.level); };
+  document.getElementById('homeBtn').onclick=function(){ showHome(); };
+}
+
+function showHome(){
+  game.state='HOME';
+  var ov=document.getElementById('overlay');
+  ov.style.display='flex';
+  ov.innerHTML='<div class="card"><h1>BALL<span>DROP</span></h1><p style="text-align:center;color:#00f5ff;letter-spacing:4px;font-weight:700;margin-top:4px;font-size:11px">MASTER THE DROP - REAL PHYSICS</p><p><b style="color:#00f5ff">Real Physics:</b><br>• Drag distance + drag speed = ball velocity<br>• Fast swipe = more power<br>• Gravity, bounce, friction real<br><br><b>Easy Start:</b><br>LV1-5: Huge bucket, close, no blocking obstacles. Every level is tested to be 100% solvable.<br><br>LV1: Tutorial<br>LV2-3: Easy<br>LV4-6: Medium<br>LV7+: Moving obstacles</p><button class="btn2 primary" id="playBtn">▶ PLAY - START SUPER EASY</button></div>';
+  document.getElementById('playBtn').onclick=function(){ loadLevel(1); };
+}
+
+function update(dt){
+  game.time+=dt;
+  if(game.bucket && game.bucket.moving){
+    game.bucket.x=game.bucket.baseX + Math.sin(game.time*game.bucket.speed)*game.bucket.range;
+    game.bucket.x=clamp(game.bucket.x, game.bucket.w/2+15, W-game.bucket.w/2-15);
+  }
+  for(var i=0;i<game.obstacles.length;i++){
+    var ob=game.obstacles[i];
+    if(ob.moving){
+      ob.x=ob.baseX + Math.sin(game.time*ob.speed+ob.phase)*ob.range;
+      ob.x=clamp(ob.x, 40, W-40);
+    }
+  }
+
+  if(game.state==='LAUNCHED' && game.ball.launched){
+    var b=game.ball;
+    b.vy+=game.gravity;
+    b.vx*=0.994; b.vy*=0.994;
+    b.x+=b.vx; b.y+=b.vy;
+    b.trail.push({x:b.x,y:b.y,t:0}); if(b.trail.length>8) b.trail.shift();
+    for(var j=0;j<b.trail.length;j++) b.trail[j].t+=dt;
+    if(b.x-b.r<0){ b.x=b.r; b.vx=Math.abs(b.vx)*0.68; }
+    if(b.x+b.r>W){ b.x=W-b.r; b.vx=-Math.abs(b.vx)*0.68; }
+    if(b.y-b.r<0){ b.y=b.r; b.vy=Math.abs(b.vy)*0.68; }
+    if(b.y+b.r>CH-2){
+      b.y=CH-2-b.r;
+      b.vy=-Math.abs(b.vy)*0.58;
+      b.vx*=0.88;
+      if(Math.abs(b.vy)<0.8 && Math.abs(b.vx)<0.8){
+        miss();
+      }
+    }
+    for(var o=0;o<game.obstacles.length;o++){
+      var ob=game.obstacles[o];
+      var cx=clamp(b.x, ob.x-ob.w/2, ob.x+ob.w/2);
+      var cy=clamp(b.y, ob.y-ob.h/2, ob.y+ob.h/2);
+      var d2=dist2(b.x,b.y,cx,cy);
+      if(d2 < b.r*b.r){
+        var dx=b.x-cx, dy=b.y-cy;
+        var d=Math.sqrt(d2)||1;
+        b.x=cx + dx/d*(b.r+1);
+        b.y=cy + dy/d*(b.r+1);
+        var dot=b.vx*dx/d + b.vy*dy/d;
+        b.vx-=2*dot*dx/d*0.72;
+        b.vy-=2*dot*dy/d*0.72;
+      }
+    }
+    var buck=game.bucket;
+    var insideX= b.x>buck.x-buck.w/2+6 && b.x<buck.x+buck.w/2-6;
+    var insideY= b.y>buck.y-4 && b.y<buck.y+buck.h*0.65;
+    if(insideX && insideY && b.vy>0){
+      success();
+    }
+    if(b.y>CH+110 || b.x<-110 || b.x>W+110){
+      miss();
+    }
+  }
+  for(var p=game.particles.length-1;p>=0;p--){
+    var pa=game.particles[p];
+    pa.t+=dt; pa.x+=pa.vx*dt; pa.y+=pa.vy*dt; pa.vy+=220*dt; pa.life-=dt;
+    if(pa.life<=0) game.particles.splice(p,1);
+  }
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,CH);
+  // obstacles
+  for(var i=0;i<game.obstacles.length;i++){
+    var ob=game.obstacles[i];
+    ctx.fillStyle= ob.moving? 'rgba(255,230,0,0.92)':'rgba(255,255,255,0.18)';
+    ctx.strokeStyle='rgba(255,255,255,0.12)'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.roundRect(ob.x-ob.w/2, ob.y-ob.h/2, ob.w, ob.h, 6); ctx.fill(); ctx.stroke();
+  }
+  // bucket
+  if(game.bucket){
+    var b=game.bucket;
+    ctx.fillStyle='rgba(0,0,0,0.35)'; ctx.beginPath(); ctx.ellipse(b.x, b.y+b.h*0.6, b.w*0.5, 8, 0,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#1a2340'; ctx.strokeStyle='#2a3a6a'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.rect(b.x-b.w/2, b.y, b.w, b.h); ctx.fill(); ctx.stroke();
+    ctx.fillStyle='rgba(0,245,255,0.18)'; ctx.fillRect(b.x-b.w/2+3, b.y+3, b.w-6, b.h-6);
+    ctx.fillStyle='#00f5ff'; ctx.fillRect(b.x-b.w/2, b.y-2, b.w, 4);
+  }
+  // trajectory - REAL physics preview
+  if(game.traj.length>1){
+    ctx.setLineDash([6,8]);
+    ctx.strokeStyle='rgba(255,255,255,0.38)'; ctx.lineWidth=2;
+    ctx.beginPath();
+    for(var t=0;t<game.traj.length;t++){
+      var pt=game.traj[t];
+      if(t===0) ctx.moveTo(pt.x,pt.y); else ctx.lineTo(pt.x,pt.y);
+    }
+    ctx.stroke(); ctx.setLineDash([]);
+    for(var t=0;t<game.traj.length;t+=4){
+      var pt=game.traj[t];
+      ctx.fillStyle= t%8===0? '#00f5ff':'rgba(255,255,255,0.45)';
+      ctx.beginPath(); ctx.arc(pt.x,pt.y, t%8===0?3.6:2,0,Math.PI*2); ctx.fill();
+    }
+  }
+  // ball
+  if(game.ball){
+    var ball=game.ball;
+    for(var i=0;i<ball.trail.length;i++){
+      var tr=ball.trail[i];
+      ctx.globalAlpha=0.3*(1-tr.t);
+      ctx.fillStyle='#00f5ff';
+      ctx.beginPath(); ctx.arc(tr.x,tr.y, ball.r*(1-tr.t*0.5),0,Math.PI*2); ctx.fill();
+    }
+    ctx.globalAlpha=1;
+    var grad=ctx.createRadialGradient(ball.x-ball.r*0.3, ball.y-ball.r*0.3, ball.r*0.2, ball.x, ball.y, ball.r);
+    grad.addColorStop(0,'#ffffff'); grad.addColorStop(0.4,'#a0f0ff'); grad.addColorStop(1,'#0090b0');
+    ctx.fillStyle=grad; ctx.shadowBlur=14; ctx.shadowColor='#00f5ff';
+    ctx.beginPath(); ctx.arc(ball.x,ball.y,ball.r,0,Math.PI*2); ctx.fill(); ctx.shadowBlur=0;
+    ctx.fillStyle='rgba(255,255,255,0.9)'; ctx.beginPath(); ctx.arc(ball.x-ball.r*0.3, ball.y-ball.r*0.3, ball.r*0.25,0,Math.PI*2); ctx.fill();
+    // aim arrow
+    if(aiming && game.canLaunch){
+      var len=40+game.power*30;
+      var ex=ball.x+Math.cos(game.angle)*len;
+      var ey=ball.y+Math.sin(game.angle)*len;
+      ctx.strokeStyle='rgba(255,255,255,0.6)'; ctx.lineWidth=2;
+      ctx.beginPath(); ctx.moveTo(ball.x,ball.y); ctx.lineTo(ex,ey); ctx.stroke();
+      // arrow head
+      ctx.fillStyle='rgba(255,255,255,0.8)';
+      ctx.beginPath(); ctx.arc(ex,ey,4,0,Math.PI*2); ctx.fill();
+    }
+  }
+  for(var p=0;p<game.particles.length;p++){
+    var pa=game.particles[p];
+    ctx.globalAlpha=pa.life;
+    ctx.fillStyle=pa.color;
+    ctx.beginPath(); ctx.arc(pa.x,pa.y,pa.r*pa.life,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+
+var last=performance.now();
+function loop(now){
+  var dt=Math.min(0.033, (now-last)/1000);
+  last=now;
+  if(game.state==='AIMING' || game.state==='LAUNCHED'){
+    update(dt);
+  }
+  draw();
+  requestAnimationFrame(loop);
+}
+loop(performance.now());
+showHome();
+
+})();
+</script>
+</body>
+</html>
