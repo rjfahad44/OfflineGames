@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>CAR AUTO AI REALISTIC V2 - No Collision</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;touch-action:none;-webkit-tap-highlight-color:transparent;user-select:none}
+html,body{width:100%;height:100%;overflow:hidden;background:#080f1e;position:fixed;font-family:-apple-system,Arial,sans-serif}
+canvas{display:block;width:100vw;height:100vh;background:#0e1a33}
+#top{position:absolute;top:0;left:0;right:0;padding:10px;display:flex;gap:6px;z-index:10;pointer-events:none;flex-wrap:wrap}
+.pill{background:rgba(0,0,0,0.8);border:1px solid rgba(255,255,255,0.25);border-radius:20px;padding:6px 12px;color:#fff;font-weight:800;font-size:11px;backdrop-filter:blur(6px)}
+.pill span{color:#ffcc00}
+.pill.ai{background:linear-gradient(135deg,#a6ff00,#00e5ff);color:#000;border-color:#fff}
+.pill.ai span{color:#000}
+#learningBar{position:absolute;left:12px;right:12px;top:50px;height:12px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.15);border-radius:999px;overflow:hidden;z-index:10;pointer-events:none}
+#learningFill{height:100%;width:0%;background:linear-gradient(90deg,#a6ff00,#00e5ff,#ffcc00);transition:width 0.4s cubic-bezier(0.4,0,0.2,1)}
+#aiStatus{position:absolute;left:12px;right:12px;bottom:12px;background:rgba(0,0,0,0.7);border:1px solid rgba(166,255,0,0.25);border-radius:12px;padding:8px 10px;z-index:10;pointer-events:none;color:#a6ff00;font-size:10px;font-weight:700;line-height:1.4;backdrop-filter:blur(8px)}
+#overlay{position:absolute;inset:0;z-index:30;background:radial-gradient(700px 500px at 50% 15%, rgba(18,32,62,0.98), rgba(5,10,20,0.98));display:flex;align-items:center;justify-content:center;padding:18px}
+.card{width:360px;background:linear-gradient(180deg,#1e345f,#0f1a33);border:2px solid #a6ff00;border-radius:20px;padding:20px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,0.6)}
+.card h1{color:#fff;font-size:28px;font-weight:900}
+.card h1 b{color:#a6ff00}
+.card p{color:#cbd5e1;font-size:12px;margin:10px 0;line-height:1.6;text-align:left;background:rgba(0,0,0,0.35);padding:11px;border-radius:12px;border:1px solid rgba(255,255,255,0.08)}
+.btn{width:100%;padding:14px;border-radius:12px;border:2px solid #fff;background:linear-gradient(180deg,#a6ff00,#00cc66);color:#000;font-weight:900;font-size:16px;margin-top:8px}
+.btn:active{transform:scale(0.97)}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="top">
+<div class="pill">LV <span id="lv">1</span></div>
+<div class="pill">DIST <span id="dist">0</span>m</div>
+<div class="pill">SPEED <span id="sp">0</span></div>
+<div class="pill">SCORE <span id="score">0</span></div>
+<div class="pill">🏁 <span id="over">0</span></div>
+<div class="pill ai">🧠 <span id="aiLearn">0%</span> • <span id="aiStage">Beginner</span></div>
+</div>
+<div id="learningBar"><div id="learningFill"></div></div>
+<div id="aiStatus">🤖 Initializing realistic traffic system...</div>
+<div id="overlay"></div>
+<script>
+var canvas=document.getElementById('c');
+var ctx=canvas.getContext('2d');
+var W=innerWidth, H=innerHeight;
+canvas.width=W; canvas.height=H;
+addEventListener('resize',function(){ W=innerWidth; H=innerHeight; canvas.width=W; canvas.height=H; roadW=W*0.88; roadX=(W-roadW)/2; laneW=roadW/3; });
+
+function rand(a,b){return a+Math.random()*(b-a);}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+function lerp(a,b,t){return a+(b-a)*t;}
+
+var roadW=W*0.88;
+var roadX=(W-roadW)/2;
+var laneW=roadW/3;
+
+var player={x:0, y:0, w:42, h:76, lane:1, targetLane:1, targetX:0, speed:0};
+var traffic=[];
+var particles=[];
+var speed=8, baseSpeed=8, maxSpeed=26;
+var dist=0, score=0, level=1, overtakes=0;
+var time=0, playing=false;
+
+var ai={
+  learning:0,
+  sensorRange:150,
+  reaction:4,
+  stage:'Beginner',
+  decisions:0,
+  avoided:0,
+  predictionRange:0
+};
+
+function initTraffic(){
+  traffic=[];
+  // Only 3 cars initially, far apart - no collision
+  var usedLanes=[];
+  for(var i=0;i<3;i++){
+    var lane;
+    do{ lane=Math.floor(rand(0,3)); }while(usedLanes.indexOf(lane)!==-1 && usedLanes.length<3);
+    usedLanes.push(lane);
+    var y= -200 - i*380 - rand(0,150); // 380px apart - big space
+    var col=['#ff3c00','#00e5ff','#ffcc00'][i%3];
+    traffic.push({
+      x: roadX + laneW*lane + laneW/2,
+      y:y, w:40, h:70,
+      lane:lane, targetLane:lane,
+      baseSpeed: rand(0.58,0.78),
+      curSpeed: rand(0.58,0.78),
+      color:col,
+      over:false,
+      changeTimer: rand(2.5,5),
+      safeDist: 140,
+      id:i
+    });
+  }
+}
+
+function reset(){
+  roadW=W*0.88; roadX=(W-roadW)/2; laneW=roadW/3;
+  player.x=roadX + laneW*1 + laneW/2;
+  player.targetX=player.x;
+  player.lane=1; player.targetLane=1;
+  player.y=H*0.78;
+  traffic=[]; particles=[];
+  speed=baseSpeed; dist=0; score=0; level=1; overtakes=0; time=0;
+  ai.learning=0; ai.sensorRange=150; ai.reaction=4; ai.stage='Beginner'; ai.decisions=0; ai.avoided=0; ai.predictionRange=0;
+  initTraffic();
+  playing=true;
+  document.getElementById('overlay').style.display='none';
+  updateStatus('AI Ready - Realistic traffic, no collisions');
+}
+
+function updateStatus(msg){
+  document.getElementById('aiStatus').textContent='🤖 '+msg;
+}
+function showMsg(txt,dur){
+  // reuse aiStatus for messages briefly
+  var old=document.getElementById('aiStatus').textContent;
+  updateStatus(txt);
+  setTimeout(function(){ if(playing) updateStatus(old.replace('🤖 ','')); }, dur||1000);
+}
+
+function showHome(){
+  playing=false;
+  var ov=document.getElementById('overlay');
+  ov.style.display='flex';
+  ov.innerHTML='<div class="card"><h1>CAR <b>REALISTIC V2</b></h1><p style="text-align:center;color:#a6ff00;font-size:11px;letter-spacing:2px;font-weight:900">NO COLLISION • SMOOTH • SELF LEARNING</p><p><b style="color:#a6ff00">✅ Realistic Fix:</b><br>• Car kom: Start e 3 ta, max 5 ta<br>• Boro gap: 380px space, kono collision na<br>• Traffic car gula brake kore space rakhe<br>• Lane change sudhu free lane e<br>• 60FPS smooth<br><br><b style="color:#00e5ff">🧠 AI Self Improvement:</b><br>• 0-30% Beginner: Slow, safe lane<br>• 30-70% Intermediate: Fast overtake, prediction on<br>• 70-100% Expert: Perfect, 280m sensor, pro driving<br>• Joto chalabe toto smart<br><br><b>Infinity + No Crash Traffic</b></p><button class="btn" id="playBtn">🤖 START REALISTIC AI</button></div>';
+  document.getElementById('playBtn').onclick=reset;
+}
+
+// REALISTIC TRAFFIC - NO COLLISION BETWEEN THEM
+function updateTraffic(dt){
+  // Sort by y to check ahead
+  traffic.sort(function(a,b){ return a.y - b.y; });
+
+  for(var i=0;i<traffic.length;i++){
+    var t=traffic[i];
+
+    // Find car ahead in same target lane
+    var carAhead=null;
+    var minDist=9999;
+    for(var j=0;j<traffic.length;j++){
+      if(i===j) continue;
+      var o=traffic[j];
+      if(Math.abs(o.targetLane - t.targetLane)<0.4){
+        var dy=o.y - t.y;
+        if(dy<0 && dy>-300){ // ahead is smaller y (above)
+          // Actually y increases downward, so ahead means? Let's define: cars moving down, so ahead in direction of travel is larger y? No, player at bottom, traffic moves down toward player, so ahead = larger y? Wait: traffic y starts negative and moves down to H. So car with larger y is ahead (closer to player). So car ahead has y > t.y
+          // Corrected: ahead = y > t.y and within distance
+        }
+        // Correct logic: traffic moving down (y increasing). So car ahead has bigger y
+        if(o.y > t.y && o.y - t.y < 250 && o.y - t.y < minDist){
+          carAhead=o;
+          minDist=o.y - t.y;
+        }
+      }
+    }
+
+    // Safe distance braking - NO COLLISION
+    if(carAhead){
+      var safe= 130 + (t.curSpeed*30);
+      var dist= carAhead.y - t.y;
+      if(dist < safe){
+        // Brake to match speed
+        var targetSpeed= carAhead.curSpeed * 0.92;
+        t.curSpeed+= (targetSpeed - t.curSpeed)*dt*3;
+        // Try to change lane if blocked too long
+        t.changeTimer-=dt*1.5;
+      } else {
+        // Accelerate back to base
+        t.curSpeed+= (t.baseSpeed - t.curSpeed)*dt*1.2;
+      }
+    } else {
+      t.curSpeed+= (t.baseSpeed - t.curSpeed)*dt*1.2;
+    }
+
+    // Lane change only if safe
+    t.changeTimer-=dt;
+    if(t.changeTimer<=0){
+      t.changeTimer= rand(2.5,5.5) - level*0.1;
+      if(t.changeTimer<1.2) t.changeTimer=1.2;
+
+      // If blocked, try to change
+      if(carAhead && (carAhead.y - t.y) < 150){
+        var options=[];
+        if(t.targetLane>0) options.push(t.targetLane-1);
+        if(t.targetLane<2) options.push(t.targetLane+1);
+        options.sort(function(){return Math.random()-0.5;});
+
+        for(var k=0;k<options.length;k++){
+          var nl=options[k];
+          var free=true;
+          for(var j=0;j<traffic.length;j++){
+            if(i===j) continue;
+            var o=traffic[j];
+            if(Math.abs(o.targetLane - nl)<0.4){
+              if(Math.abs(o.y - t.y) < 200) free=false; // need 200px clear
+              if(o.y > t.y && o.y - t.y < 180) free=false;
+              if(o.y < t.y && t.y - o.y < 120) free=false;
+            }
+          }
+          // Also check player lane
+          if(Math.abs(player.targetLane - nl)<0.5 && Math.abs(player.y - t.y)<160) free=false;
+
+          if(free){
+            t.targetLane=nl;
+            break;
+          }
+        }
+      } else if(Math.random()<0.08){
+        // Random lane change but only if very free
+        var nl=Math.floor(rand(0,3));
+        if(nl!==t.targetLane){
+          var free=true;
+          for(var j=0;j<traffic.length;j++){
+            if(Math.abs(traffic[j].targetLane - nl)<0.4 && Math.abs(traffic[j].y - t.y)<220) free=false;
+          }
+          if(free) t.targetLane=nl;
+        }
+      }
+    }
+
+    // Smooth move to target lane
+    var tx= roadX + laneW*t.targetLane + laneW/2;
+    t.x+= (tx - t.x)*dt*4;
+
+    // Move down
+    var rel= speed - t.curSpeed*speed*0.62;
+    t.y+= rel*dt*30;
+
+    // Keep speed in bounds
+    t.curSpeed=clamp(t.curSpeed, 0.35, 0.95);
+  }
+}
+
+// AI SELF-DRIVING - IMPROVED SMOOTH
+function updateAI(dt){
+  // Learning progression - slower, more realistic
+  ai.learning= Math.min(100, (dist/2000)*100*0.5 + overtakes*0.6 + ai.avoided*0.3);
+  ai.sensorRange= 150 + (ai.learning/100)*130; // 150->280
+  ai.reaction= 4 + (ai.learning/100)*6; // 4->10
+  ai.predictionRange= ai.learning>40 ? 180 : 0;
+
+  if(ai.learning<30) ai.stage='Beginner';
+  else if(ai.learning<70) ai.stage='Intermediate';
+  else ai.stage='Expert';
+
+  document.getElementById('aiLearn').textContent=Math.floor(ai.learning)+'%';
+  document.getElementById('aiStage').textContent=ai.stage;
+  document.getElementById('learningFill').style.width=ai.learning+'%';
+
+  // Evaluate lanes
+  var laneScores=[0,0,0];
+  for(var l=0;l<3;l++){
+    var score=100;
+    for(var i=0;i<traffic.length;i++){
+      var t=traffic[i];
+      if(Math.abs(t.targetLane - l)<0.4){
+        var dy=t.y - player.y;
+        if(dy<0 && dy>-ai.sensorRange){
+          score-= (ai.sensorRange + dy)*0.4;
+        }
+        if(dy>0 && dy<90) score-= (90-dy)*0.6;
+        // Predict traffic lane change
+        if(ai.learning>40 && Math.abs(t.targetLane - t.lane)>0.2){
+          if(Math.abs(t.y - player.y)<180) score-=30;
+        }
+      }
+    }
+    if(l===1) score+=8; // prefer center
+    laneScores[l]=score;
+  }
+
+  var curLane=Math.round(player.targetLane);
+  var danger=false;
+  var closest=999;
+  for(var i=0;i<traffic.length;i++){
+    var t=traffic[i];
+    if(Math.abs(t.targetLane - player.targetLane)<0.5){
+      var dy=t.y - player.y;
+      if(dy<0 && dy>-ai.sensorRange && Math.abs(dy)<closest){
+        closest=Math.abs(dy);
+        danger=true;
+      }
+    }
+  }
+
+  if(danger && closest<160){
+    var bestLane=curLane;
+    var bestScore=-999;
+    for(var l=0;l<3;l++){
+      if(l!==curLane && laneScores[l]>bestScore && laneScores[l]>40){
+        bestScore=laneScores[l];
+        bestLane=l;
+      }
+    }
+    if(bestLane!==curLane){
+      player.targetLane=bestLane;
+      ai.decisions++;
+      ai.avoided++;
+      updateStatus('AI '+ai.stage+' - Danger '+Math.floor(closest)+'m → Lane '+(bestLane+1)+' (Safe:'+Math.floor(bestScore)+')');
+    } else {
+      // No safe lane, slow down
+      if(closest<70){
+        speed*=0.88;
+        updateStatus('AI Braking - No free lane, car ahead '+Math.floor(closest)+'m');
+      } else {
+        updateStatus('Monitoring - Car ahead '+Math.floor(closest)+'m, waiting for gap');
+      }
+    }
+  } else {
+    if(ai.learning>65 && laneScores[1]>75 && curLane!==1 && Math.random()<0.015){
+      player.targetLane=1;
+      updateStatus('AI Expert - Centering for best options');
+    } else {
+      var best=Math.max.apply(null,laneScores);
+      updateStatus('AI '+ai.stage+' - Cruising | Range '+Math.floor(ai.sensorRange)+'m | Lanes ['+Math.floor(laneScores[0])+','+Math.floor(laneScores[1])+','+Math.floor(laneScores[2])+'] | Speed '+Math.floor(speed*9)+'km/h');
+    }
+  }
+
+  // Smooth follow
+  player.lane+= (player.targetLane - player.lane)*dt*ai.reaction;
+  var tx= roadX + laneW*player.lane + laneW/2;
+  player.x+= (tx - player.x)*dt*(9 + ai.learning*0.07);
+}
+
+function update(dt){
+  if(!playing) return;
+  time+=dt;
+
+  updateAI(dt);
+  updateTraffic(dt);
+
+  var targetSpd= baseSpeed + (level-1)*0.7 + (ai.learning/100)*2.5;
+  targetSpd=Math.min(maxSpeed, targetSpd);
+  speed+= (targetSpd - speed)*dt*1;
+
+  dist+= speed*dt*7;
+  score+= Math.floor(speed*dt*2);
+
+  var newLevel= Math.floor(dist/500)+1;
+  if(newLevel>level){
+    level=newLevel;
+    baseSpeed+=0.5;
+    showMsg('LEVEL '+level+' - AI Improving!', 1000);
+  }
+
+  // Player overtake
+  for(var i=0;i<traffic.length;i++){
+    var t=traffic[i];
+    if(!t.over && t.y > player.y+35){
+      t.over=true;
+      overtakes++;
+      score+= 70 + level*5;
+      if(overtakes%3===0) showMsg(overtakes+' Overtakes! AI Learning '+Math.floor(ai.learning)+'%', 800);
+    }
+
+    var dx=Math.abs(t.x - player.x);
+    var dy=Math.abs(t.y - player.y);
+    if(dx < 38 && dy < 58){
+      // AI crash - learn and push away, no game over (infinite)
+      score=Math.max(0, score-80);
+      ai.learning=Math.max(0, ai.learning-1);
+      if(t.x < player.x) player.targetX+=50;
+      else player.targetX-=50;
+      player.targetX=clamp(player.targetX, roadX+24, roadX+roadW-24);
+      player.targetLane=clamp(Math.floor((player.targetX - roadX)/laneW),0,2);
+      for(var p=0;p<8;p++) particles.push({x:player.x, y:player.y, vx:rand(-70,70), vy:rand(-70,20), life:0.6, r:3, color:'#ff3c00'});
+      updateStatus('AI Learning from near miss - Adjusting');
+      t.y-=120;
+      t.changeTimer=2;
+    }
+  }
+
+  // Remove offscreen and spawn very few
+  for(var i=traffic.length-1;i>=0;i--) if(traffic[i].y>H+150) traffic.splice(i,1);
+
+  var maxCars= 3 + Math.floor(level*0.4); // Max 3-5 cars only
+  if(maxCars>6) maxCars=6;
+  var spawnRate= 0.008 + level*0.002; // Very low
+  if(traffic.length < maxCars && Math.random()<spawnRate){
+    // Find empty lane far away
+    var lane=Math.floor(rand(0,3));
+    var ok=true;
+    for(var i=0;i<traffic.length;i++){
+      if(Math.abs(traffic[i].targetLane - lane)<0.4 && traffic[i].y < 200) ok=false;
+    }
+    if(ok){
+      var col=['#ff3c00','#00e5ff','#ffcc00'][Math.floor(rand(0,3))];
+      traffic.push({
+        x: roadX + laneW*lane + laneW/2,
+        y:-120,
+        w:40, h:70,
+        lane:lane, targetLane:lane,
+        baseSpeed: rand(0.55,0.78),
+        curSpeed: rand(0.55,0.78),
+        color:col,
+        over:false,
+        changeTimer: rand(2,4),
+        safeDist:140
+      });
+    }
+  }
+
+  for(var i=particles.length-1;i>=0;i--){
+    var pa=particles[i];
+    pa.x+=pa.vx*dt; pa.y+=pa.vy*dt; pa.life-=dt;
+    if(pa.life<=0) particles.splice(i,1);
+  }
+
+  document.getElementById('lv').textContent=level;
+  document.getElementById('dist').textContent=Math.floor(dist);
+  document.getElementById('sp').textContent=Math.floor(speed*9);
+  document.getElementById('score').textContent=score;
+  document.getElementById('over').textContent=overtakes;
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+
+  // Grass
+  ctx.fillStyle='#143314';
+  ctx.fillRect(0,0,roadX,H);
+  ctx.fillRect(roadX+roadW,0,W-roadX-roadW,H);
+
+  // Road
+  ctx.fillStyle='#3d3d3d';
+  ctx.fillRect(roadX,0,roadW,H);
+
+  // Borders
+  ctx.fillStyle='#ffcc00';
+  ctx.fillRect(roadX-8,0,8,H);
+  ctx.fillRect(roadX+roadW,0,8,H);
+  ctx.fillStyle='#fff';
+  ctx.fillRect(roadX-2,0,2,H);
+  ctx.fillRect(roadX+roadW+6,0,2,H);
+
+  // Lanes
+  ctx.strokeStyle='rgba(255,255,255,0.35)';
+  ctx.lineWidth=3;
+  ctx.setLineDash([26,26]);
+  var off=(time*speed*7)%52;
+  for(var l=1;l<3;l++){
+    var lx=roadX + laneW*l;
+    ctx.beginPath();
+    ctx.moveTo(lx, -52+off);
+    ctx.lineTo(lx, H);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // Sensors
+  if(playing){
+    var sy=player.y - 18;
+    ctx.strokeStyle='rgba(166,255,0,0.18)';
+    ctx.lineWidth=1;
+    ctx.setLineDash([5,5]);
+    ctx.beginPath(); ctx.moveTo(player.x, sy); ctx.lineTo(player.x, sy - ai.sensorRange); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(player.x, sy); ctx.lineTo(player.x - laneW*0.7, sy - ai.sensorRange*0.8); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(player.x, sy); ctx.lineTo(player.x + laneW*0.7, sy - ai.sensorRange*0.8); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Traffic - realistic with gap visualization
+  for(var i=0;i<traffic.length;i++){
+    var t=traffic[i];
+    ctx.save();
+    ctx.translate(t.x,t.y);
+    // Shadow
+    ctx.fillStyle='rgba(0,0,0,0.3)';
+    ctx.beginPath(); ctx.ellipse(0, t.h*0.38, t.w*0.5, 7,0,0,Math.PI*2); ctx.fill();
+    // Car
+    ctx.fillStyle=t.color;
+    ctx.fillRect(-t.w/2, -t.h/2, t.w, t.h);
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5;
+    ctx.strokeRect(-t.w/2, -t.h/2, t.w, t.h);
+    // Windows
+    ctx.fillStyle='rgba(0,0,0,0.7)';
+    ctx.fillRect(-t.w*0.32, -t.h*0.28, t.w*0.64, 14);
+    ctx.fillStyle='#aaddff';
+    ctx.fillRect(-t.w*0.28, -t.h*0.26, t.w*0.56, 10);
+    // Safe distance indicator (faint)
+    if(ai.learning>50){
+      ctx.strokeStyle='rgba(255,255,255,0.07)';
+      ctx.lineWidth=1;
+      ctx.setLineDash([4,4]);
+      ctx.beginPath(); ctx.moveTo(0, -t.h/2 - 100); ctx.lineTo(0, -t.h/2 - 10); ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.restore();
+  }
+
+  // Player AI car
+  ctx.save();
+  ctx.translate(player.x, player.y);
+  ctx.fillStyle='rgba(0,0,0,0.35)';
+  ctx.beginPath(); ctx.ellipse(0, player.h*0.4, player.w*0.6, 9,0,0,Math.PI*2); ctx.fill();
+
+  var carColor= ai.learning>70 ? '#a6ff00' : ai.learning>30 ? '#ffcc00' : '#ff7a00';
+  ctx.fillStyle=carColor;
+  ctx.fillRect(-player.w/2, -player.h/2, player.w, player.h);
+  ctx.strokeStyle='#fff'; ctx.lineWidth=2.5;
+  ctx.strokeRect(-player.w/2, -player.h/2, player.w, player.h);
+
+  ctx.fillStyle='#000';
+  ctx.font='bold 8px Arial'; ctx.textAlign='center';
+  ctx.fillText('AI '+Math.floor(ai.learning)+'%', 0, -player.h/2-10);
+
+  ctx.fillStyle='#fff';
+  ctx.fillRect(-player.w*0.35, -player.h*0.1, player.w*0.7, player.h*0.42);
+  ctx.fillStyle='#00e5ff';
+  ctx.beginPath(); ctx.arc(0, -player.h*0.26, 10,0,Math.PI*2); ctx.fill();
+
+  // AI brain glow when expert
+  if(ai.learning>75){
+    ctx.shadowBlur=12; ctx.shadowColor='#a6ff00';
+    ctx.strokeStyle='#a6ff00'; ctx.lineWidth=1.5;
+    ctx.strokeRect(-player.w/2-2, -player.h/2-2, player.w+4, player.h+4);
+    ctx.shadowBlur=0;
+  }
+
+  ctx.restore();
+
+  for(var i=0;i<particles.length;i++){
+    var pa=particles[i];
+    ctx.globalAlpha=pa.life;
+    ctx.fillStyle=pa.color;
+    ctx.beginPath(); ctx.arc(pa.x,pa.y,pa.r,0,Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha=1;
+}
+
+var last=performance.now();
+function loop(now){
+  var dt=Math.min(0.033,(now-last)/1000);
+  last=now;
+  if(playing) update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+loop(performance.now());
+showHome();
+</script>
+</body>
+</html>

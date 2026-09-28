@@ -46,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,6 +66,7 @@ import com.bitbytestudio.offlinegames.ui.GameActivity
 import com.bitbytestudio.offlinegames.ui.theme.OfflineGamesTheme
 import java.util.Locale
 
+@Stable
 data class GameItem(
     val fileName: String,
     val relativePath: String,

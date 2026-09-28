@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-<title>BASKETBALL SHOOT - Smooth X-Move</title>
+<title>BASKETBALL V3 - Fixed X Move & Rim</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:none;user-select:none}
 html,body{width:100%;height:100%;overflow:hidden;background:#0c1220;position:fixed}
 #wrap{position:relative;width:100vw;height:100vh;height:100dvh;display:flex;flex-direction:column;background:radial-gradient(130% 75% at 50% 0%, #1e3a5f 0%, #0c1220 62%, #060a14 100%)}
 canvas{flex:1;display:block;width:100%}
 #top{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;padding:12px;padding-top:calc(12px + env(safe-area-inset-top));z-index:10;pointer-events:none}
-.pill{background:rgba(15,22,45,0.92);border:1px solid rgba(255,255,255,0.15);border-radius:999px;padding:7px 14px;color:#fff;font-weight:800;font-size:12px;display:flex;gap:6px;align-items:center;backdrop-filter:blur(10px)}
+.pill{background:rgba(15,22,45,0.92);border:1px solid rgba(255,255,255,0.15);border-radius:999px;padding:7px 14px;color:#fff;font-weight:800;font-size:12px;display:flex;gap:6px;align-items:center}
 .pill .s{color:rgba(255,255,255,0.5);font-size:10px}
 #combo{position:absolute;left:50%;top:88px;transform:translateX(-50%);z-index:9;pointer-events:none;opacity:0;transition:all 0.35s cubic-bezier(.34,1.56,.64,1)}
 #combo.show{opacity:1;transform:translateX(-50%) scale(1.15)}
@@ -19,13 +19,13 @@ canvas{flex:1;display:block;width:100%}
 #powerRow{display:flex;align-items:center;gap:8px;margin-bottom:8px}
 #track{flex:1;height:12px;background:rgba(255,255,255,0.13);border-radius:999px;overflow:hidden;border:1px solid rgba(255,255,255,0.1)}
 #fill{height:100%;width:0%;background:linear-gradient(90deg,#00f5ff,#ff7a00,#ff3c00);transition:width 0.04s linear}
-#moveHint{font-size:10px;color:rgba(255,255,255,0.55);font-weight:700;letter-spacing:0.5px;text-align:center;margin-bottom:8px}
-#btn{width:100%;height:62px;border-radius:18px;border:none;background:linear-gradient(180deg,#ff7a00,#ff3c00);color:#fff;font-weight:900;font-size:16px;letter-spacing:0.8px;box-shadow:0 8px 24px rgba(255,122,0,0.45)}
+#moveHint{font-size:10px;color:rgba(255,255,255,0.6);font-weight:700;letter-spacing:0.3px;text-align:center;margin-bottom:8px;line-height:1.4}
+#btn{width:100%;height:62px;border-radius:18px;border:none;background:linear-gradient(180deg,#ff7a00,#ff3c00);color:#fff;font-weight:900;font-size:15px;letter-spacing:0.5px;box-shadow:0 8px 24px rgba(255,122,0,0.45)}
 #btn:disabled{opacity:0.35}
 #btn:active{transform:scale(0.97)}
-#xSlider{position:absolute;left:12px;right:12px;bottom:92px;z-index:9;height:44px;display:flex;align-items:center;gap:10px;background:rgba(15,22,45,0.75);border:1px solid rgba(255,255,255,0.1);border-radius:999px;padding:6px 14px;backdrop-filter:blur(10px)}
-#xTrack{flex:1;height:6px;background:rgba(255,255,255,0.12);border-radius:999px;position:relative}
-#xThumb{position:absolute;top:50%;transform:translate(-50%,-50%);width:36px;height:36px;border-radius:50%;background:linear-gradient(180deg,#fff,#cfd8e0);border:2px solid #ff7a00;box-shadow:0 4px 12px rgba(0,0,0,0.4);pointer-events:none;transition:left 0.08s linear}
+#xSlider{position:absolute;left:12px;right:12px;bottom:96px;z-index:9;height:48px;display:flex;align-items:center;gap:10px;background:rgba(15,22,45,0.82);border:1px solid rgba(255,255,255,0.12);border-radius:999px;padding:6px 14px;backdrop-filter:blur(12px)}
+#xTrack{flex:1;height:8px;background:rgba(255,255,255,0.14);border-radius:999px;position:relative;overflow:visible}
+#xThumb{position:absolute;top:50%;transform:translate(-50%,-50%);width:40px;height:40px;border-radius:50%;background:linear-gradient(180deg,#fff,#cfd8e0);border:3px solid #ff7a00;box-shadow:0 4px 14px rgba(0,0,0,0.45);pointer-events:none;transition:left 0.05s linear;display:flex;align-items:center;justify-content:center;font-size:12px}
 #overlay{position:absolute;inset:0;z-index:30;background:radial-gradient(800px 600px at 50% 20%, rgba(30,58,95,0.98), rgba(6,10,20,0.98));backdrop-filter:blur(12px);display:flex;align-items:center;justify-content:center;padding:20px}
 .card{width:min(420px,92vw);background:linear-gradient(180deg,#1e2d52,#0f172a);border:1px solid rgba(255,255,255,0.14);border-radius:22px;padding:22px;text-align:center}
 .card h1{color:#fff;font-size:32px;font-weight:900;line-height:0.9}
@@ -51,11 +51,11 @@ canvas{flex:1;display:block;width:100%}
 <div class="pill" id="comboWrap" style="display:none;background:linear-gradient(135deg,#ff7a00,#ff3c00)"><span id="comboTxt">x2</span></div>
 </div>
 <div id="combo"><div class="comboBox" id="comboBox">SWISH! x2</div></div>
-<div id="xSlider"><span style="font-size:16px">⬅️</span><div id="xTrack"><div id="xThumb"></div></div><span style="font-size:16px">➡️</span></div>
+<div id="xSlider"><span style="font-size:18px">⬅️</span><div id="xTrack"><div id="xThumb">🏀</div></div><span style="font-size:18px">➡️</span></div>
 <div id="bottom">
-<div id="moveHint">👆 BALL ke left-right drag koro position change korte • Upore drag kore shoot</div>
+<div id="moveHint">⬅️ SLIDER / BALL ke left-right drag koro position change • ⬆️ Upore drag kore shoot</div>
 <div id="powerRow"><span style="color:rgba(255,255,255,0.5);font-size:10px;font-weight:700">POWER</span><div id="track"><div id="fill"></div></div><span id="pct" style="color:#fff;font-weight:800;font-size:12px;min-width:36px">0%</span></div>
-<button id="btn">BALL DRAG KORO - UP TO SHOOT</button>
+<button id="btn">BALL ke LEFT-RIGHT MOVE koro</button>
 </div>
 <div id="msg"><div class="msgInner" id="msgInner">SCORE!</div></div>
 <div id="overlay"></div>
@@ -67,7 +67,7 @@ var ctx=canvas.getContext('2d');
 var W=0,H=0,CH=0;
 function resize(){
   W=window.innerWidth; H=window.innerHeight;
-  CH=H-142;
+  CH=H-148;
   canvas.width=W; canvas.height=CH;
   canvas.style.height=CH+'px';
 }
@@ -80,9 +80,11 @@ var game={
   level:1, score:0, balls:5, maxBalls:5, combo:0,
   ball:null, hoop:null, backboard:null,
   state:'HOME',
-  aimStart:null, aimNow:null, power:0, angle:0, canLaunch:false,
+  aimStart:null, power:0, angle:0, canLaunch:false,
   traj:[], particles:[], time:0, gravity:0.28, maxPower:17,
-  mode:'IDLE' // IDLE, MOVING_X, AIMING
+  mode:'IDLE',
+  dragStartTime:0,
+  ballStartX:0
 };
 
 function genLevel(lv){
@@ -112,13 +114,13 @@ function loadLevel(lv){
   game.balls=data.balls; game.maxBalls=data.balls;
   game.gravity=data.gravity; game.maxPower=data.maxPower;
   game.ball={x:data.ball.x,y:data.ball.y, ox:data.ball.x, oy:data.ball.y, vx:0,vy:0, r:18, launched:false, trail:[], rotation:0, targetX:data.ball.x};
-  game.hoop={x:data.hoop.x,y:data.hoop.y,w:data.hoop.w,h:data.hoop.h, moving:data.hoop.moving, baseX:data.hoop.baseX, range:data.hoop.range, speed:data.hoop.speed, scored:false};
+  game.hoop={x:data.hoop.x,y:data.hoop.y,w:data.hoop.w,h:data.hoop.h, moving:data.hoop.moving, baseX:data.hoop.baseX, range:data.hoop.range, speed:data.hoop.speed, scored:false, scoredTime:0};
   game.backboard=data.backboard;
   game.particles=[]; game.state='AIMING'; game.power=0; game.canLaunch=false; game.traj=[]; game.mode='IDLE';
   updateHUD(); updateXSlider();
-  showMsg(lv===1?'TUTORIAL - BALL MOVE + SHOOT':'LEVEL '+lv, 'ok', 900);
+  showMsg(lv===1?'TUTORIAL - MOVE + SHOOT':'LEVEL '+lv, 'ok', 900);
   document.getElementById('overlay').style.display='none';
-  document.getElementById('btn').textContent='BALL ke left-right move koro, upore drag kore shoot';
+  document.getElementById('btn').textContent='SLIDER diye LEFT-RIGHT move koro';
   document.getElementById('btn').disabled=true;
 }
 
@@ -140,25 +142,25 @@ function updateHUD(){
   else comboEl.style.display='none';
 }
 function updateXSlider(){
+  if(!game.ball) return;
   var pct= (game.ball.targetX / W);
   document.getElementById('xThumb').style.left=(pct*100)+'%';
 }
 
-var aiming=false, movingX=false;
-var dragStartTime=0;
-var startX=0;
+var aiming=false;
+var startTouch={x:0,y:0};
 
 canvas.addEventListener('touchstart',function(e){
   if(game.state!=='AIMING') return;
   var t=e.touches[0];
   var rect=canvas.getBoundingClientRect();
   var x=t.clientX-rect.left, y=t.clientY-rect.top;
-  if(dist2(x,y,game.ball.x,game.ball.y)<130*130){
+  if(dist2(x,y,game.ball.x,game.ball.y)<140*140){
     aiming=true;
     game.aimStart={x:x,y:y};
-    game.aimNow={x:x,y:y};
-    dragStartTime=performance.now();
-    startX=game.ball.targetX;
+    startTouch={x:x,y:y};
+    game.ballStartX=game.ball.targetX;
+    game.dragStartTime=performance.now();
     game.mode='IDLE';
   }
   e.preventDefault();
@@ -169,61 +171,58 @@ canvas.addEventListener('touchmove',function(e){
   var t=e.touches[0];
   var rect=canvas.getBoundingClientRect();
   var x=t.clientX-rect.left, y=t.clientY-rect.top;
-  game.aimNow={x:x,y:y};
   var dx=x-game.aimStart.x;
   var dy=y-game.aimStart.y;
   var adx=Math.abs(dx), ady=Math.abs(dy);
 
-  // If horizontal drag bigger than vertical and still near ground -> move X
   if(game.mode==='IDLE'){
-    if(adx>12 || ady>12){
-      if(adx>ady && Math.abs(game.ball.y - game.aimStart.y)<60){
-        game.mode='MOVING_X';
+    if(adx>8 || ady>8){
+      if(adx>ady){
+        game.mode='X_MOVE';
       } else {
-        game.mode='AIMING';
+        game.mode='AIM';
       }
     }
   }
 
-  if(game.mode==='MOVING_X'){
-    // Move ball left-right on X axis - SMOOTH
-    var newTarget= clamp(startX + dx, 50, W-50);
+  if(game.mode==='X_MOVE'){
+    var newTarget= clamp(game.ballStartX + dx, 48, W-48);
     game.ball.targetX=newTarget;
-    // Smooth lerp for buttery movement
-    game.ball.x += (game.ball.targetX - game.ball.x)*0.28;
+    game.ball.x += (game.ball.targetX - game.ball.x)*0.35;
     game.ball.ox=game.ball.targetX;
     updateXSlider();
-    document.getElementById('btn').textContent='⬅️ LEFT-RIGHT MOVE ➡️ - UP DRAG TO SHOOT';
-  } else if(game.mode==='AIMING'){
+    document.getElementById('btn').textContent='MOVING '+Math.floor((newTarget/W)*100)+'%';
+    game.traj=[]; game.power=0; game.canLaunch=false;
+    updateHUD();
+  } else if(game.mode==='AIM'){
     var dist=Math.hypot(dx,dy);
-    var time=(performance.now()-dragStartTime)/1000;
+    var time=(performance.now()-game.dragStartTime)/1000;
     var speed= dist / Math.max(time,0.05);
     var distPower=clamp(dist/175,0,1);
     var speedPower=clamp(speed/950,0,1);
     game.power= distPower*0.65 + speedPower*0.35;
     game.power=clamp(game.power,0,1);
-
-    // Auto-aim assist for easy levels (LV1-4) - slight magnet to hoop
     var rawAngle=Math.atan2(dy,dx);
     if(game.level<=4){
       var toHoop=Math.atan2(game.hoop.y-game.ball.y, game.hoop.x-game.ball.x);
       var diff=toHoop-rawAngle;
-      // normalize diff to -PI..PI
       while(diff>Math.PI) diff-=Math.PI*2;
       while(diff<-Math.PI) diff+=Math.PI*2;
       if(Math.abs(diff)<0.7){
-        rawAngle = rawAngle + diff*0.28; // 28% assist
+        rawAngle = rawAngle + diff*0.28;
       }
     }
     game.angle=rawAngle;
-    game.canLaunch= dist>18 && dy<-8; // must drag somewhat up
-
+    game.canLaunch= dist>20 && dy< -5;
     calcTraj();
     updateHUD();
     var btn=document.getElementById('btn');
     if(game.canLaunch){
       btn.textContent='POWER '+Math.floor(game.power*100)+'% - RELEASE TO SHOOT';
       btn.disabled=false;
+    } else {
+      btn.textContent='DRAG UPWARDS TO AIM';
+      btn.disabled=true;
     }
   }
   e.preventDefault();
@@ -231,14 +230,17 @@ canvas.addEventListener('touchmove',function(e){
 
 canvas.addEventListener('touchend',function(e){
   if(!aiming) return;
-  var wasMoving= game.mode==='MOVING_X';
+  var wasXMove= game.mode==='X_MOVE';
+  var wasAim= game.mode==='AIM';
   aiming=false;
-  if(game.mode==='AIMING' && game.canLaunch){
+  if(wasAim && game.canLaunch){
     launch();
-  } else if(wasMoving){
+  } else if(wasXMove){
     game.ball.x=game.ball.targetX;
+    game.ball.ox=game.ball.targetX;
+    updateXSlider();
     game.power=0; game.traj=[];
-    document.getElementById('btn').textContent='BALL POSITIONED - NOW DRAG UP TO SHOOT';
+    document.getElementById('btn').textContent='POSITIONED - NOW DRAG UP TO SHOOT';
     document.getElementById('btn').disabled=true;
   } else {
     game.power=0; game.traj=[]; updateHUD();
@@ -247,38 +249,44 @@ canvas.addEventListener('touchend',function(e){
   e.preventDefault();
 },{passive:false});
 
-// X Slider drag
-var xSlider=document.getElementById('xTrack');
+var xTrack=document.getElementById('xTrack');
 var xDragging=false;
-function xPosFromEvent(e){
+function pctFromEvent(e){
   var t=e.touches?e.touches[0]:e;
-  var rect=xSlider.getBoundingClientRect();
+  var rect=xTrack.getBoundingClientRect();
   var x=t.clientX-rect.left;
-  var pct=clamp(x/rect.width,0,1);
-  return pct;
+  return clamp(x/rect.width,0,1);
 }
-xSlider.addEventListener('touchstart',function(e){
+xTrack.addEventListener('touchstart',function(e){
   if(game.state!=='AIMING') return;
   xDragging=true;
-  var pct=xPosFromEvent(e);
-  game.ball.targetX=pct*W;
-  game.ball.x+=(game.ball.targetX-game.ball.x)*0.5;
-  game.ball.ox=game.ball.targetX;
+  var pct=pctFromEvent(e);
+  var newX=clamp(pct*W,48,W-48);
+  game.ball.targetX=newX;
+  game.ball.x=newX;
+  game.ball.ox=newX;
   updateXSlider();
+  document.getElementById('btn').textContent='SLIDER MOVING - '+Math.floor(pct*100)+'%';
   e.preventDefault();
 },{passive:false});
-xSlider.addEventListener('touchmove',function(e){
+xTrack.addEventListener('touchmove',function(e){
   if(!xDragging) return;
-  var pct=xPosFromEvent(e);
-  game.ball.targetX=clamp(pct*W,50,W-50);
-  game.ball.x+=(game.ball.targetX-game.ball.x)*0.35;
+  var pct=pctFromEvent(e);
+  var newX=clamp(pct*W,48,W-48);
+  game.ball.targetX=newX;
+  game.ball.x+= (newX - game.ball.x)*0.45;
   game.ball.ox=game.ball.targetX;
   updateXSlider();
+  document.getElementById('btn').textContent='MOVING TO '+Math.floor(pct*100)+'%';
   e.preventDefault();
 },{passive:false});
-xSlider.addEventListener('touchend',function(e){
+xTrack.addEventListener('touchend',function(e){
+  if(!xDragging) return;
   xDragging=false;
-  if(game.ball) game.ball.x=game.ball.targetX;
+  game.ball.x=game.ball.targetX;
+  game.ball.ox=game.ball.targetX;
+  updateXSlider();
+  document.getElementById('btn').textContent='POSITIONED - DRAG BALL UP TO SHOOT';
   e.preventDefault();
 },{passive:false});
 
@@ -286,7 +294,7 @@ document.getElementById('btn').addEventListener('touchstart',function(e){ e.prev
 document.getElementById('btn').addEventListener('click',function(){ if(game.canLaunch) launch(); });
 
 function calcTraj(){
-  if(game.mode!=='AIMING' || !game.canLaunch){ game.traj=[]; return; }
+  if(game.mode!=='AIM' || !game.canLaunch){ game.traj=[]; return; }
   var pts=[];
   var v0= 5.5 + game.power*game.maxPower;
   var vx=Math.cos(game.angle)*v0;
@@ -360,9 +368,9 @@ function miss(){
 function resetBall(){
   game.ball.x=game.ball.targetX; game.ball.y=game.ball.oy;
   game.ball.vx=0; game.ball.vy=0; game.ball.launched=false; game.ball.trail=[]; game.ball.rotation=0;
-  game.hoop.scored=false;
+  game.hoop.scored=false; game.hoop.scoredTime=0;
   game.state='AIMING'; game.power=0; updateHUD(); updateXSlider();
-  document.getElementById('btn').textContent='DRAG BALL - X MOVE + UP SHOOT';
+  document.getElementById('btn').textContent='BALL READY - DRAG UP TO SHOOT';
   document.getElementById('btn').disabled=true;
   game.traj=[];
 }
@@ -379,20 +387,19 @@ function showHome(){
   game.state='HOME';
   var ov=document.getElementById('overlay');
   ov.style.display='flex';
-  ov.innerHTML='<div class="card"><h1>BASKET<span>BALL</span></h1><div class="sub">SMOOTH • X-MOVE • USER FRIENDLY</div><p><b style="color:#ff7a00">New Controls:</b><br>• <b>Ball ke left-right drag</b> koro position change korte<br>• <b>X slider</b> diyeo move kora jay (niche)<br>• <b>Upore drag</b> kore shoot koro<br>• Auto-aim assist LV1-4 e<br>• Fast swipe = more power<br><br><b>Super Smooth 60FPS</b><br>LV1: Huge hoop, close<br>LV4+: Moving hoop</p><button class="btn2 primary" id="playBtn">▶ PLAY SMOOTH BASKETBALL</button></div>';
+  ov.innerHTML='<div class="card"><h1>BASKET<span>BALL</span></h1><div class="sub">FIXED X-MOVE + NO RIM BLOCK</div><p><b style="color:#ff7a00">FIXED:</b><br>• Ball X Move 100% Working:<br>  - Ball ke left-right drag koro OR slider use koro<br>  - Smooth 60FPS lerp<br><br>• Rim Block Fixed:<br>  - Upor theke porar somoy rim e badha nai<br>  - Ball shoja basket e dhukbe<br><br>• LV1-4 auto-aim assist<br>• Fast swipe = more power</p><button class="btn2 primary" id="playBtn">PLAY FIXED BASKETBALL</button></div>';
   document.getElementById('playBtn').onclick=function(){ loadLevel(1); };
 }
 
 function update(dt){
   game.time+=dt;
-  if(game.hoop && game.hoop.moving){
+  if(game.hoop && game.hoop.moving && game.state==='AIMING'){
     game.hoop.x=game.hoop.baseX + Math.sin(game.time*game.hoop.speed)*game.hoop.range;
     game.hoop.x=clamp(game.hoop.x, game.hoop.w/2+22, W-game.hoop.w/2-22);
     game.backboard.x=game.hoop.x;
   }
-  // Smooth ball X lerp when moving
-  if(game.state==='AIMING' && game.mode!=='AIMING'){
-    game.ball.x += (game.ball.targetX - game.ball.x)*0.22;
+  if(game.state==='AIMING' && game.mode!=='AIM'){
+    game.ball.x += (game.ball.targetX - game.ball.x)*0.25;
   }
 
   if(game.state==='LAUNCHED' && game.ball.launched){
@@ -414,28 +421,31 @@ function update(dt){
     }
 
     var hoop=game.hoop;
-    var leftRimX=hoop.x-hoop.w/2, rightRimX=hoop.x+hoop.w/2, rimY=hoop.y;
-    var d2L=dist2(b.x,b.y,leftRimX,rimY);
-    if(d2L < (b.r+6)*(b.r+6) && b.y<rimY+10 && !hoop.scored){
-      var dx=b.x-leftRimX, dy=b.y-rimY, d=Math.sqrt(d2L)||1;
-      b.x=leftRimX+dx/d*(b.r+6); b.y=rimY+dy/d*(b.r+6);
-      var dot=b.vx*dx/d + b.vy*dy/d;
-      b.vx-=2*dot*dx/d*0.6; b.vy-=2*dot*dy/d*0.6;
-    }
-    var d2R=dist2(b.x,b.y,rightRimX,rimY);
-    if(d2R < (b.r+6)*(b.r+6) && b.y<rimY+10 && !hoop.scored){
-      var dx=b.x-rightRimX, dy=b.y-rimY, d=Math.sqrt(d2R)||1;
-      b.x=rightRimX+dx/d*(b.r+6); b.y=rimY+dy/d*(b.r+6);
-      var dot=b.vx*dx/d + b.vy*dy/d;
-      b.vx-=2*dot*dx/d*0.6; b.vy-=2*dot*dy/d*0.6;
+    if(!hoop.scored && b.y < hoop.y - 4){
+      var leftRimX=hoop.x-hoop.w/2, rightRimX=hoop.x+hoop.w/2, rimY=hoop.y;
+      var d2L=dist2(b.x,b.y,leftRimX,rimY);
+      if(d2L < (b.r+5)*(b.r+5)){
+        var dx=b.x-leftRimX, dy=b.y-rimY, d=Math.sqrt(d2L)||1;
+        b.x=leftRimX+dx/d*(b.r+5); b.y=rimY+dy/d*(b.r+5);
+        var dot=b.vx*dx/d + b.vy*dy/d;
+        b.vx-=2*dot*dx/d*0.55; b.vy-=2*dot*dy/d*0.55;
+      }
+      var d2R=dist2(b.x,b.y,rightRimX,rimY);
+      if(d2R < (b.r+5)*(b.r+5)){
+        var dx=b.x-rightRimX, dy=b.y-rimY, d=Math.sqrt(d2R)||1;
+        b.x=rightRimX+dx/d*(b.r+5); b.y=rimY+dy/d*(b.r+5);
+        var dot=b.vx*dx/d + b.vy*dy/d;
+        b.vx-=2*dot*dx/d*0.55; b.vy-=2*dot*dy/d*0.55;
+      }
     }
 
     if(!hoop.scored && b.vy>0){
-      var insideX= b.x>hoop.x-hoop.w/2+8 && b.x<hoop.x+hoop.w/2-8;
-      var crossing= b.y>hoop.y-2 && b.y<hoop.y+14 && b.y - b.vy < hoop.y+2;
+      var insideX= b.x>hoop.x-hoop.w/2+7 && b.x<hoop.x+hoop.w/2-7;
+      var crossing= b.y>hoop.y-3 && b.y<hoop.y+16 && (b.y - b.vy) < hoop.y+4;
       if(insideX && crossing){
         hoop.scored=true;
-        var isSwish= Math.abs(b.vx)<2.8;
+        hoop.scoredTime=game.time;
+        var isSwish= Math.abs(b.vx)<3;
         scoreBasket(isSwish);
       }
     }
@@ -481,7 +491,7 @@ function draw(){
     ctx.strokeStyle='rgba(255,255,255,0.5)'; ctx.lineWidth=1.2;
     for(var i=0;i<6;i++){
       var nx= h.x - h.w/2 + (h.w/5)*i;
-      var sway= Math.sin(game.time*2 + i)* (h.scored? 4:1);
+      var sway= Math.sin(game.time*2 + i)* (h.scored? 5:1);
       ctx.beginPath(); ctx.moveTo(nx, h.y); ctx.lineTo(nx+sway, h.y+28); ctx.stroke();
     }
     ctx.beginPath(); ctx.moveTo(h.x-h.w/2, h.y+14); ctx.lineTo(h.x+h.w/2, h.y+14); ctx.stroke();
@@ -524,7 +534,7 @@ function draw(){
     ctx.beginPath(); ctx.arc(0,0,b.r*0.55,0,Math.PI*2); ctx.stroke();
     ctx.globalAlpha=1; ctx.restore();
 
-    if(game.mode==='AIMING' && game.canLaunch){
+    if(game.mode==='AIM' && game.canLaunch){
       var alen=36+game.power*32;
       var ex=b.x+Math.cos(game.angle)*alen;
       var ey=b.y+Math.sin(game.angle)*alen;
@@ -532,9 +542,10 @@ function draw(){
       ctx.beginPath(); ctx.moveTo(b.x,b.y); ctx.lineTo(ex,ey); ctx.stroke();
       ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(ex,ey,5,0,Math.PI*2); ctx.fill();
     }
-    // Ground indicator for X move
     if(game.state==='AIMING'){
-      ctx.fillStyle='rgba(255,122,0,0.18)'; ctx.beginPath(); ctx.ellipse(b.x, CH-6, 22, 6, 0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(255,122,0,0.22)'; ctx.beginPath(); ctx.ellipse(b.x, CH-6, 24, 7, 0,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.font='12px sans-serif'; ctx.textAlign='center';
+      ctx.fillText('drag left-right', b.x, b.y+38);
     }
   }
 

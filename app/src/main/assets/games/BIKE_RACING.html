@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+<title>BIKE REALISTIC - Wheels + Hill</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;touch-action:none;-webkit-tap-highlight-color:transparent}
+html,body{width:100%;height:100%;overflow:hidden;background:#0e1a3a;position:fixed;font-family:Arial,sans-serif}
+canvas{display:block;width:100vw;height:100vh;background:#0e1a3a}
+#ui{position:absolute;top:0;left:0;right:0;padding:10px;display:flex;justify-content:space-between;z-index:10;pointer-events:none}
+.pill{background:rgba(0,0,0,0.65);border:1px solid rgba(255,255,255,0.25);border-radius:20px;padding:6px 12px;color:#fff;font-weight:800;font-size:11px}
+#btns{position:absolute;left:0;right:0;bottom:0;height:120px;z-index:10;display:flex;justify-content:space-between;padding:10px 10px calc(10px + env(safe-area-inset-bottom));pointer-events:none;align-items:flex-end}
+.b{pointer-events:auto;width:78px;height:78px;border-radius:18px;border:2px solid #fff;background:rgba(255,255,255,0.14);color:#fff;font-weight:900;font-size:22px;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(0,0,0,0.4)}
+.b span{font-size:9px;margin-top:2px;letter-spacing:0.5px}
+.b:active{transform:scale(0.92);background:rgba(255,255,255,0.32)}
+#b2{width:96px;height:96px;background:linear-gradient(180deg,#ff7a00,#ff3c00);font-size:30px}
+#b2 span{font-size:10px}
+#speedBar{position:absolute;left:50%;bottom:124px;transform:translateX(-50%);width:180px;height:8px;background:rgba(255,255,255,0.15);border-radius:999px;overflow:hidden;z-index:10;pointer-events:none;border:1px solid rgba(255,255,255,0.15)}
+#speedFill{height:100%;width:0%;background:linear-gradient(90deg,#00f5ff,#ff7a00,#ff3c00);transition:width 0.08s linear}
+#overlay{position:absolute;inset:0;z-index:20;background:rgba(0,0,0,0.88);display:flex;align-items:center;justify-content:center}
+.box{width:320px;background:#1e2d52;border:2px solid #fff;border-radius:18px;padding:20px;text-align:center}
+.box h1{color:#fff;font-size:28px}
+.box h1 span{color:#ff7a00}
+.box p{color:#ccc;font-size:12px;margin:12px 0;line-height:1.6;text-align:left;background:rgba(0,0,0,0.3);padding:10px;border-radius:10px}
+.btn{width:100%;padding:14px;border-radius:12px;border:2px solid #fff;background:#ff6600;color:#fff;font-weight:900;font-size:16px;margin-top:10px}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="ui">
+<div class="pill">DIST <span id="d">0</span>m</div>
+<div class="pill">SPEED <span id="sp">0</span></div>
+<div class="pill">SCORE <span id="s">0</span></div>
+<div class="pill">COIN <span id="cc">0</span></div>
+</div>
+<div id="speedBar"><div id="speedFill"></div></div>
+<div id="btns">
+<div id="b1" class="b">◀<span>BRAKE</span></div>
+<div id="b2" class="b">▶<span>HOLD TO SPEED UP</span></div>
+</div>
+<div id="overlay">
+<div class="box">
+<h1>BIKE<span>RACING</span></h1>
+<p style="text-align:center;color:#00ffcc;font-size:10px;letter-spacing:2px">REALISTIC WHEELS • HILL PHYSICS</p>
+<p><b style="color:#ff7a00">NEW Realistic:</b><br>• Front & back wheel alada hill follow korbe<br>• Hold ▶ = speed continuously barbe (0-120 km/h)<br>• Uphill e front wheel upore uthbe<br>• Downhill e front wheel niche nambe<br>• Wheelie: accelerate e front wheel up<br>• Brake e front wheel down<br><br>▶ Hold = Speed up<br>◀ Hold = Brake</p>
+<button class="btn" id="play">▶ PLAY REALISTIC</button>
+</div>
+</div>
+<script>
+var canvas=document.getElementById('c');
+var ctx=canvas.getContext('2d');
+var W=innerWidth, H=innerHeight;
+canvas.width=W; canvas.height=H;
+function onResize(){ W=innerWidth; H=innerHeight; canvas.width=W; canvas.height=H; }
+addEventListener('resize',onResize);
+function rand(a,b){return a+Math.random()*(b-a);}
+function lerp(a,b,t){return a+(b-a)*t;}
+
+var track=[];
+var coins=[];
+var rocks=[];
+for(var i=0;i<500;i++){
+  var x=i*85;
+  var y=H*0.72 + Math.sin(i*0.28)*26 + Math.sin(i*0.11)*38 + Math.sin(i*0.06)*22;
+  if(i>6 && Math.random()<0.18) y-= rand(25,65);
+  track.push({x:x,y:y});
+  if(Math.random()<0.62) coins.push({x:x+rand(-10,10), y:y-rand(50,90), c:false});
+  if(i>12 && Math.random()<0.14) rocks.push({x:x, y:y});
+}
+
+function getY(x){
+  for(var i=0;i<track.length-1;i++){
+    if(x>=track[i].x && x<=track[i+1].x){
+      var t=(x-track[i].x)/(track[i+1].x-track[i].x);
+      return track[i].y*(1-t)+track[i+1].y*t;
+    }
+  }
+  return H*0.72;
+}
+
+var bike={
+  x:120,
+  y:0,
+  vx:0,
+  vy:0,
+  angle:0,
+  wheelie:0,
+  onGround:true,
+  airTime:0,
+  rearY:0,
+  frontY:0
+};
+bike.y=getY(120)-30;
+var cam=0;
+var dist=0, score=0, coinCount=0;
+var playing=false;
+var input={l:false,r:false};
+
+function reset(){
+  bike.x=120; bike.y=getY(120)-30; bike.vx=0; bike.vy=0; bike.angle=0; bike.wheelie=0; bike.onGround=true; bike.airTime=0;
+  dist=0; score=0; coinCount=0; cam=0;
+  for(var i=0;i<coins.length;i++) coins[i].c=false;
+  playing=true;
+  document.getElementById('overlay').style.display='none';
+}
+
+document.getElementById('play').onclick=reset;
+document.getElementById('play').ontouchstart=function(e){e.preventDefault(); reset();};
+
+var b1=document.getElementById('b1');
+var b2=document.getElementById('b2');
+function bind(el,key){
+  el.ontouchstart=function(e){e.preventDefault(); input[key]=true;};
+  el.ontouchend=function(e){e.preventDefault(); input[key]=false;};
+  el.ontouchcancel=function(e){e.preventDefault(); input[key]=false;};
+  el.onmousedown=function(){input[key]=true;};
+  el.onmouseup=function(){input[key]=false;};
+}
+bind(b1,'l');
+bind(b2,'r');
+
+function update(){
+  if(!playing) return;
+
+  // ACCELERATION - HOLD TO SPEED UP CONTINUOUSLY
+  if(input.r){
+    // Continuous acceleration - speed keeps increasing while holding
+    var accelPower = 0.22 + bike.vx*0.012; // more speed = slightly more accel at start, then friction
+    bike.vx+= accelPower;
+    bike.wheelie+=0.06;
+  } else {
+    bike.wheelie-=0.08;
+  }
+  if(input.l){
+    bike.vx-=0.45;
+    bike.wheelie-=0.10;
+  }
+
+  bike.wheelie=Math.max(-0.4, Math.min(1, bike.wheelie));
+
+  // Friction and max speed
+  bike.vx*=0.997; // very low friction so speed builds up
+  if(Math.abs(bike.vx)<0.1) bike.vx=0;
+  if(bike.vx>16) bike.vx=16; // max ~ 140 km/h
+  if(bike.vx<-4) bike.vx=-4;
+
+  bike.x+=bike.vx;
+  dist+=Math.max(0,bike.vx*0.05);
+
+  // TWO WHEELS FOLLOW TRACK SEPARATELY - REALISTIC HILL CLIMB
+  var wheelBase=34; // distance between wheels
+  var rearX=bike.x - wheelBase/2;
+  var frontX=bike.x + wheelBase/2;
+
+  var rearTrackY=getY(rearX);
+  var frontTrackY=getY(frontX);
+
+  // Apply wheelie effect - front wheel lifts
+  var frontLift=bike.wheelie*26;
+  if(frontLift<0) frontLift*=0.6; // brake dips less
+
+  frontTrackY-= frontLift;
+
+  bike.rearY=rearTrackY;
+  bike.frontY=frontTrackY;
+
+  // Bike angle from two wheels
+  var targetAngle=Math.atan2(frontTrackY - rearTrackY, wheelBase);
+
+  // If in air, don't follow track
+  if(!bike.onGround){
+    bike.vy+=0.42;
+    bike.y+=bike.vy;
+    bike.angle+= bike.wheelie*0.02;
+    if(bike.y >= (rearTrackY+frontTrackY)/2 - 18){
+      bike.y=(rearTrackY+frontTrackY)/2 - 18;
+      bike.vy=0;
+      bike.onGround=true;
+      bike.airTime=0;
+    }
+  } else {
+    // On ground - bike follows average of wheels
+    var avgY=(rearTrackY+frontTrackY)/2;
+    var targetY=avgY - 18;
+    // Smooth suspension
+    bike.y+= (targetY - bike.y)*0.28;
+    bike.vy=0;
+
+    // Check for jump
+    var nextRearY=getY(rearX+25);
+    var nextFrontY=getY(frontX+25);
+    if((nextRearY < rearTrackY - 14 || nextFrontY < frontTrackY - 14) && bike.vx>6){
+      bike.onGround=false;
+      bike.vy=-3 - bike.vx*0.15;
+    }
+
+    bike.angle+= (targetAngle - bike.angle)*0.18;
+  }
+
+  cam+= (bike.x - W*0.28 - cam)*0.09;
+
+  // Coins
+  for(var i=0;i<coins.length;i++){
+    var c=coins[i];
+    if(!c.c){
+      var dx=bike.x-c.x, dy=bike.y-c.y;
+      if(dx*dx+dy*dy < 1000){
+        c.c=true;
+        coinCount++; score+=25;
+      }
+    }
+  }
+  // Rocks
+  for(var i=0;i<rocks.length;i++){
+    var r=rocks[i];
+    if(Math.abs(bike.x-r.x)<26 && Math.abs(bike.y-(r.y-12))<22){
+      if(Math.abs(bike.vx)>3){
+        playing=false;
+        document.getElementById('overlay').style.display='flex';
+        document.getElementById('overlay').innerHTML='<div class="box"><h1><span style="color:red">CRASH!</span></h1><p>Dist: '+Math.floor(dist)+'m<br>Score: '+score+'<br>Coins: '+coinCount+'<br>Max Speed: '+Math.floor(bike.vx*8)+' km/h</p><button class="btn" onclick="location.reload()">RETRY</button></div>';
+        return;
+      }
+    }
+  }
+
+  score+=Math.floor(Math.abs(bike.vx)*0.06);
+
+  document.getElementById('d').textContent=Math.floor(dist);
+  document.getElementById('s').textContent=score;
+  document.getElementById('cc').textContent=coinCount;
+  document.getElementById('sp').textContent=Math.floor(Math.abs(bike.vx*8));
+  document.getElementById('speedFill').style.width=Math.min(100, (Math.abs(bike.vx)/16)*100)+'%';
+
+  // Generate more track
+  if(bike.x > track[track.length-40].x){
+    var last=track[track.length-1];
+    for(var k=0;k<60;k++){
+      var x=last.x+85;
+      var y=last.y + (Math.random()-0.5)*30 + Math.sin((track.length+k)*0.28)*18;
+      y=Math.max(H*0.4, Math.min(H*0.8, y));
+      track.push({x:x,y:y});
+      last={x:x,y:y};
+      if(Math.random()<0.6) coins.push({x:x, y:y-rand(45,85), c:false});
+      if(Math.random()<0.14) rocks.push({x:x,y:y});
+    }
+  }
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+  ctx.fillStyle='#1a2a5a';
+  ctx.fillRect(0,0,W,H*0.72);
+
+  // sun
+  ctx.fillStyle='#ffcc33';
+  ctx.beginPath(); ctx.arc(W*0.82, H*0.18, 20,0,Math.PI*2); ctx.fill();
+
+  ctx.save();
+  ctx.translate(-cam,0);
+
+  // ground
+  ctx.fillStyle='#1e3a1e';
+  ctx.beginPath();
+  ctx.moveTo(track[0].x, track[0].y);
+  for(var i=1;i<track.length;i++) ctx.lineTo(track[i].x, track[i].y);
+  ctx.lineTo(track[track.length-1].x, H);
+  ctx.lineTo(track[0].x, H);
+  ctx.closePath(); ctx.fill();
+
+  ctx.strokeStyle='#a6ff00';
+  ctx.lineWidth=5;
+  ctx.beginPath();
+  ctx.moveTo(track[0].x, track[0].y);
+  for(var i=1;i<track.length;i++) ctx.lineTo(track[i].x, track[i].y);
+  ctx.stroke();
+
+  // coins
+  for(var i=0;i<coins.length;i++){
+    var c=coins[i];
+    if(c.c) continue;
+    if(c.x<cam-60 || c.x>cam+W+60) continue;
+    ctx.fillStyle='#ffe600';
+    ctx.beginPath(); ctx.arc(c.x, c.y, 10,0,Math.PI*2); ctx.fill();
+    ctx.fillStyle='#000'; ctx.font='bold 10px Arial'; ctx.textAlign='center'; ctx.fillText('$',c.x,c.y+3);
+  }
+  for(var i=0;i<rocks.length;i++){
+    var r=rocks[i];
+    if(r.x<cam-60 || r.x>cam+W+60) continue;
+    ctx.fillStyle='#5a3a2a';
+    ctx.fillRect(r.x-12, r.y-16, 24, 16);
+  }
+
+  // BIKE WITH TWO WHEELS ADJUSTING TO HILL
+  ctx.save();
+  ctx.translate(bike.x, bike.y);
+  ctx.rotate(bike.angle);
+
+  // frame
+  ctx.strokeStyle='#ff7a00';
+  ctx.lineWidth=4;
+  ctx.beginPath();
+  ctx.moveTo(-14,-2); ctx.lineTo(8,-8); ctx.lineTo(14,-2);
+  ctx.stroke();
+  ctx.strokeStyle='#fff';
+  ctx.lineWidth=2;
+  ctx.beginPath();
+  ctx.moveTo(-14,-2); ctx.lineTo(-8,6); ctx.lineTo(8,6); ctx.lineTo(14,-2);
+  ctx.stroke();
+
+  // rider
+  ctx.fillStyle='#00f5ff';
+  ctx.beginPath(); ctx.arc(-2,-16,6,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#e0f0ff';
+  ctx.fillRect(-7,-12,12,12);
+
+  ctx.restore();
+
+  // WHEELS - separate, follow ground
+  var wheelBase=34;
+  var rearX=bike.x - wheelBase/2;
+  var frontX=bike.x + wheelBase/2;
+
+  // rear wheel
+  var rearY=bike.rearY || getY(rearX);
+  ctx.fillStyle='#222';
+  ctx.beginPath(); ctx.arc(rearX, rearY+2, 11,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#ff7a00'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(rearX, rearY+2, 11,0,Math.PI*2); ctx.stroke();
+  // spokes
+  ctx.save();
+  ctx.translate(rearX, rearY+2);
+  ctx.rotate(bike.x*0.15);
+  ctx.strokeStyle='#ff7a00'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(-11,0); ctx.lineTo(11,0); ctx.moveTo(0,-11); ctx.lineTo(0,11); ctx.stroke();
+  ctx.restore();
+
+  // front wheel with lift
+  var frontY=bike.frontY || getY(frontX);
+  ctx.fillStyle='#222';
+  ctx.beginPath(); ctx.arc(frontX, frontY+2, 11,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#ff7a00'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(frontX, frontY+2, 11,0,Math.PI*2); ctx.stroke();
+  ctx.save();
+  ctx.translate(frontX, frontY+2);
+  ctx.rotate(bike.x*0.15*1.1);
+  ctx.strokeStyle='#ff7a00'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(-11,0); ctx.lineTo(11,0); ctx.moveTo(0,-11); ctx.lineTo(0,11); ctx.stroke();
+  ctx.restore();
+
+  // wheelie indicator line
+  if(bike.wheelie>0.3){
+    ctx.strokeStyle='rgba(166,255,0,0.5)'; ctx.lineWidth=2; ctx.setLineDash([6,4]);
+    ctx.beginPath(); ctx.moveTo(rearX, rearY); ctx.lineTo(frontX, frontY); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  ctx.restore();
+
+  // speed lines when fast
+  if(Math.abs(bike.vx)>9){
+    ctx.strokeStyle='rgba(255,255,255,0.15)';
+    ctx.lineWidth=1;
+    for(var i=0;i<3;i++){
+      var sx= bike.x - cam - rand(20,60) - bike.vx*2;
+      ctx.beginPath(); ctx.moveTo(sx, bike.y+rand(-10,10)); ctx.lineTo(sx-20, bike.y+rand(-10,10)); ctx.stroke();
+    }
+  }
+}
+
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+loop();
+</script>
+</body>
+</html>
