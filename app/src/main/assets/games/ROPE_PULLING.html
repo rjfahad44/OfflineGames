@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"/>
+<title>ROPE BATTLE - Fixed Direction</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{width:100%;height:100%;overflow:hidden;touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;position:fixed;background:#0a0e1a;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+#gameWrap{position:relative;width:100vw;height:100dvh;min-height:100vh;background:radial-gradient(1200px 600px at 50% 0%, #1a2a5a 0%, #0f1a33 55%, #080c18 100%);overflow:hidden}
+canvas{display:block;width:100%;height:100%}
+.hud{position:absolute;inset:0;pointer-events:none;z-index:5}
+.hudTop{position:absolute;top:0;left:0;right:0;display:flex;justify-content:space-between;align-items:flex-start;padding:calc(8px + env(safe-area-inset-top)) 16px 0 16px}
+.scoreBox{display:flex;flex-direction:column;align-items:center;min-width:90px}
+.scoreLabel{font-size:10px;letter-spacing:2px;font-weight:800;color:rgba(255,255,255,0.6)}
+.scoreNum{font-size:28px;font-weight:900;color:#fff;line-height:1}
+.scoreNum.p1{color:#00e5ff}
+.scoreNum.p2{color:#ff7a00}
+.roundInfo{position:absolute;left:50%;top:calc(10px + env(safe-area-inset-top));transform:translateX(-50%);text-align:center}
+.roundText{font-size:11px;letter-spacing:3px;font-weight:800;color:rgba(255,255,255,0.55)}
+.roundNum{font-size:14px;font-weight:900;color:#fff;margin-top:1px}
+.powerBarWrap{position:absolute;bottom:calc(14px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);display:flex;gap:12px;align-items:center}
+.powerBar{width:26vw;max-width:200px;height:10px;background:rgba(0,0,0,0.45);border:1px solid rgba(255,255,255,0.15);border-radius:999px;overflow:hidden;position:relative}
+.powerFill{height:100%;width:0%;transition:width 0.08s linear;border-radius:999px}
+.powerFill.p1{background:linear-gradient(90deg,#00e5ff,#00b7ff);box-shadow:0 0 10px rgba(0,229,255,0.6)}
+.powerFill.p2{background:linear-gradient(90deg,#ff7a00,#ff3c00);box-shadow:0 0 10px rgba(255,122,0,0.6)}
+.powerLabel{font-size:10px;font-weight:800;letter-spacing:0.5px;color:rgba(255,255,255,0.7);min-width:62px;text-align:center}
+.overlay{position:absolute;inset:0;z-index:20;display:flex;align-items:center;justify-content:center;padding:20px;background:radial-gradient(800px 500px at 50% 20%, rgba(26,42,94,0.92), rgba(8,12,24,0.96));backdrop-filter:blur(6px)}
+.card{width:min(420px,92vw);background:linear-gradient(180deg,#1e3a6f,#121f3d);border:2px solid rgba(255,255,255,0.15);border-radius:22px;padding:22px 20px;text-align:center;box-shadow:0 24px 80px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.15)}
+.card h1{font-size:32px;font-weight:900;letter-spacing:1px;color:#fff}
+.card h1 span{color:#ff7a00}
+.card h2{font-size:12px;letter-spacing:4px;font-weight:800;color:#00e5ff;margin-top:4px}
+.controlsInfo{margin:14px 0;background:rgba(0,0,0,0.32);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:12px 10px;text-align:left}
+.controlsInfo .row{display:flex;justify-content:space-between;gap:10px;margin:6px 0}
+.badge{padding:4px 8px;border-radius:999px;font-size:10px;font-weight:800;letter-spacing:1px}
+.badge.p1{background:rgba(0,229,255,0.15);color:#00e5ff;border:1px solid rgba(0,229,255,0.3)}
+.badge.p2{background:rgba(255,122,0,0.15);color:#ff7a00;border:1px solid rgba(255,122,0,0.3)}
+.controlsInfo p{font-size:12px;color:#cbd5e1;line-height:1.4}
+.btn{width:100%;padding:15px;border-radius:14px;border:2px solid #fff;background:linear-gradient(180deg,#ff7a00,#ff3c00);color:#fff;font-weight:900;font-size:16px;letter-spacing:0.5px;cursor:pointer;box-shadow:0 8px 24px rgba(255,122,0,0.35);touch-action:manipulation}
+.btn:active{transform:scale(0.97)}
+.countdown{position:absolute;inset:0;z-index:15;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.countNum{font-size:min(22vw,160px);font-weight:900;color:#fff;text-shadow:0 0 30px rgba(255,255,255,0.6), 0 8px 30px rgba(0,0,0,0.6);transform:scale(0.6);opacity:0}
+.countNum.anim{animation:pop 0.7s cubic-bezier(0.2,0.8,0.3,1.1) forwards}
+@keyframes pop{0%{transform:scale(0.4);opacity:0} 40%{transform:scale(1.15);opacity:1} 70%{transform:scale(0.95)} 100%{transform:scale(1);opacity:1}}
+.tapZones{position:absolute;inset:0;z-index:4;display:flex}
+.tapZone{flex:1;position:relative}
+.tapZone.left{border-right:1px dashed rgba(255,255,255,0.08);background:linear-gradient(90deg, rgba(0,229,255,0.04), transparent)}
+.tapZone.right{background:linear-gradient(-90deg, rgba(255,122,0,0.04), transparent)}
+.tapHint{position:absolute;bottom:calc(56px + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%);font-size:11px;font-weight:800;letter-spacing:2px;color:rgba(255,255,255,0.35);pointer-events:none}
+#portraitOverlay{position:absolute;inset:0;z-index:100;background:#0a0e1a;display:none;flex-direction:column;align-items:center;justify-content:center;color:#fff;text-align:center;padding:20px}
+#portraitOverlay.show{display:flex}
+#portraitOverlay .icon{font-size:56px;animation:rot 1.6s ease-in-out infinite}
+@keyframes rot{0%,100%{transform:rotate(-10deg)}50%{transform:rotate(10deg)}}
+</style>
+</head>
+<body>
+<div id="gameWrap">
+<canvas id="c"></canvas>
+<div class="tapZones" id="tapZones">
+<div class="tapZone left" data-player="1"><div class="tapHint">P1 TAP LEFT - PULLS LEFT ◀</div></div>
+<div class="tapZone right" data-player="2"><div class="tapHint">PULLS RIGHT ▶ P2 TAP RIGHT</div></div>
+</div>
+<div class="hud">
+<div class="hudTop">
+<div class="scoreBox">
+<div class="scoreLabel">PLAYER 1</div>
+<div class="scoreNum p1" id="p1Score">0</div>
+<div class="scoreLabel" style="color:#00e5ff">◀ LEFT</div>
+</div>
+<div class="roundInfo">
+<div class="roundText">ROUND</div>
+<div class="roundNum" id="roundInfo">1 / 3</div>
+</div>
+<div class="scoreBox">
+<div class="scoreLabel">PLAYER 2</div>
+<div class="scoreNum p2" id="p2Score">0</div>
+<div class="scoreLabel" style="color:#ff7a00">RIGHT ▶</div>
+</div>
+</div>
+<div class="powerBarWrap">
+<div style="display:flex;align-items:center;gap:6px">
+<div class="powerLabel" id="p1TapsLabel">P1 0/s</div>
+<div class="powerBar"><div class="powerFill p1" id="p1PowerBar"></div></div>
+</div>
+<div style="display:flex;align-items:center;gap:6px">
+<div class="powerBar"><div class="powerFill p2" id="p2PowerBar"></div></div>
+<div class="powerLabel" id="p2TapsLabel">0/s P2</div>
+</div>
+</div>
+</div>
+<div class="countdown" id="countdownWrap" style="display:none"><div class="countNum" id="countNum">3</div></div>
+<div class="overlay" id="startScreen">
+<div class="card">
+<h1>ROPE <span>BATTLE</span></h1>
+<h2>⚔ FIXED DIRECTION ⚔</h2>
+<div class="controlsInfo">
+<div class="row"><span class="badge p1">P1 LEFT → PULLS LEFT ◀</span><span class="badge p2">P2 RIGHT → PULLS RIGHT ▶</span></div>
+<p><b>Fixed:</b> Je side a tap korba oi side a tanbe! Left tap = left e tanbe, Right tap = right e tanbe.</p>
+<p style="margin-top:8px"><b>Realistic:</b> 1 tap = small pull. Joto fast tap korba toto fast tanbe. Aste aste tanbe, 1 tap e mid e asbe na.</p>
+<div class="row" style="margin-top:10px">
+<span style="font-size:11px;color:#00e5ff">● LEFT TAP = PULL LEFT</span>
+<span style="font-size:11px;color:#ff7a00">● RIGHT TAP = PULL RIGHT</span>
+</div>
+</div>
+<button class="btn" id="startBtn">▶ START GAME - FIXED</button>
+<p style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:10px">BEST OF 3 • DIRECTION FIXED</p>
+</div>
+</div>
+<div class="overlay" id="roundEndScreen" style="display:none"><div class="card" id="roundEndCard"></div></div>
+<div class="overlay" id="matchEndScreen" style="display:none"><div class="card" id="matchEndCard"></div></div>
+<div id="portraitOverlay"><div class="icon">↔</div><h2 style="margin-top:16px;font-size:20px;font-weight:900">ROTATE YOUR PHONE</h2><p style="margin-top:8px;color:rgba(255,255,255,0.6)">Landscape mode required</p></div>
+</div>
+<script>
+// ==================== GAME CONFIG - REALISTIC + FIXED DIRECTION ====================
+const CONFIG = {
+  TAP_FORCE: 5.5,
+  MAX_POWER: 100,
+  POWER_DECAY: 0.78,
+  FRICTION: 0.94,
+  WIN_DIST: 0.32,
+  COUNTDOWN_MS: 700,
+  TAP_COOLDOWN: 40,
+  SCREEN_SHAKE_THRESHOLD: 0.75,
+  ACCEL_FACTOR: 0.005,
+  MAX_VELOCITY: 3.2,
+  TAP_SPEED_WINDOW: 1000,
+  MIN_TAPS_TO_MOVE: 2,
+};
+
+const GameState = { MENU:"menu", COUNTDOWN:"countdown", PLAYING:"playing", ROUND_END:"round_end", MATCH_END:"match_end" };
+
+let state = {
+  gameState: GameState.MENU,
+  currentRound: 1,
+  p1Score: 0, p2Score: 0,
+  p1Power: 0, p2Power: 0,
+  p1Taps: 0, p2Taps: 0,
+  ropeOffset: 0, // 0=center, negative=rope moves LEFT (P1 pulling), positive=RIGHT (P2 pulling)
+  velocity: 0,
+  lastP1Tap: 0, lastP2Tap: 0,
+  p1TapTimes: [], p2TapTimes: [],
+  p1TapsPerSec: 0, p2TapsPerSec: 0,
+};
+
+const canvas=document.getElementById('c');
+const ctx=canvas.getContext('2d',{alpha:false});
+let W=0,H=0,DPR=1,centerX=0,centerY=0;
+function resize(){
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  W=window.innerWidth; H=window.innerHeight;
+  canvas.width=W*DPR; canvas.height=H*DPR;
+  canvas.style.width=W+'px'; canvas.style.height=H+'px';
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  centerX=W*0.5; centerY=H*0.58;
+  const ov=document.getElementById('portraitOverlay');
+  if(W<H && W<900) ov.classList.add('show'); else ov.classList.remove('show');
+}
+window.addEventListener('resize',resize); resize();
+
+let audioCtx=null;
+function ensureAudio(){ if(!audioCtx){ try{ audioCtx=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } if(audioCtx && audioCtx.state==='suspended') audioCtx.resume(); }
+function beep(freq,dur,vol=0.18,type='sine'){ if(!audioCtx) return; const o=audioCtx.createOscillator(); const g=audioCtx.createGain(); o.type=type; o.frequency.value=freq; g.gain.value=vol; o.connect(g); g.connect(audioCtx.destination); o.start(); g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+dur); o.stop(audioCtx.currentTime+dur); }
+function tapSound(p){ beep(p===1?420:560,0.08,0.12,'square'); }
+function countSound(n){ beep(n===0?880:440+n*80,0.25,0.2,'sine'); }
+function winSound(){ beep(600,0.12,0.2); setTimeout(()=>beep(800,0.2,0.2),120); setTimeout(()=>beep(1000,0.35,0.22),240); }
+
+let ripples=[];
+function spawnRipple(player){
+  ripples.push({x:player===1?W*0.25:W*0.75, y:H*0.72+(Math.random()-0.5)*40, r:0, maxR:60+Math.random()*30, life:1, player});
+  if(ripples.length>12) ripples.shift();
+}
+
+// FIXED DIRECTION INPUT
+function handleTap(player, now){
+  if(state.gameState!==GameState.PLAYING) return;
+  const last = player===1 ? state.lastP1Tap : state.lastP2Tap;
+  if(now-last < CONFIG.TAP_COOLDOWN) return;
+  const arr = player===1 ? state.p1TapTimes : state.p2TapTimes;
+  arr.push(now);
+  const winStart = now - CONFIG.TAP_SPEED_WINDOW;
+  while(arr.length && arr[0] < winStart) arr.shift();
+  const tps = arr.length;
+  let force = CONFIG.TAP_FORCE;
+  const bonus = 1 + Math.min(1.2, tps*0.12);
+  force *= bonus;
+  if(tps>12) force*=0.65;
+  if(player===1){ state.lastP1Tap=now; state.p1Power=Math.min(CONFIG.MAX_POWER, state.p1Power+force); state.p1Taps++; state.p1TapsPerSec=tps; }
+  else{ state.lastP2Tap=now; state.p2Power=Math.min(CONFIG.MAX_POWER, state.p2Power+force); state.p2Taps++; state.p2TapsPerSec=tps; }
+  tapSound(player); spawnRipple(player);
+}
+function getPlayerFromX(x){ return x < W*0.5 ? 1 : 2; }
+canvas.addEventListener('pointerdown', e=>{
+  e.preventDefault(); ensureAudio();
+  const p=getPlayerFromX(e.clientX);
+  handleTap(p, performance.now());
+  canvas.setPointerCapture(e.pointerId);
+},{passive:false});
+document.querySelectorAll('.tapZone').forEach(z=>{
+  z.addEventListener('pointerdown', e=>{
+    e.preventDefault();
+    const p=parseInt(z.dataset.player);
+    handleTap(p, performance.now());
+  },{passive:false});
+});
+window.addEventListener('contextmenu', e=>e.preventDefault());
+
+// FIXED DIRECTION PHYSICS - LEFT TAP PULLS LEFT
+function updatePhysics(dt){
+  if(state.gameState!==GameState.PLAYING) return;
+  const now=performance.now();
+  const win=CONFIG.TAP_SPEED_WINDOW;
+  [state.p1TapTimes, state.p2TapTimes].forEach(arr=>{ while(arr.length && arr[0] < now-win) arr.shift(); });
+  state.p1TapsPerSec=state.p1TapTimes.length;
+  state.p2TapsPerSec=state.p2TapTimes.length;
+
+  const decay=Math.pow(CONFIG.POWER_DECAY, dt*60/16);
+  state.p1Power*=decay; state.p2Power*=decay;
+  if(state.p1Power<0.05) state.p1Power=0;
+  if(state.p2Power<0.05) state.p2Power=0;
+
+  const totalTaps=state.p1Taps+state.p2Taps;
+  let moveFactor=1;
+  if(totalTaps < CONFIG.MIN_TAPS_TO_MOVE) moveFactor=0.15;
+
+  const netPower = state.p1Power - state.p2Power; // positive = P1 stronger
+  const netTapSpeed = state.p1TapsPerSec - state.p2TapsPerSec;
+
+  // FIXED: P1 stronger => pull LEFT => negative velocity
+  // So combinedForce positive (P1 stronger) => targetVel NEGATIVE
+  const combinedForce = (netPower*0.6 + netTapSpeed*4.5) * moveFactor;
+  let targetVel = -combinedForce * CONFIG.ACCEL_FACTOR * 60; // NEGATIVE for P1 left pull
+
+  targetVel = Math.max(-CONFIG.MAX_VELOCITY, Math.min(CONFIG.MAX_VELOCITY, targetVel));
+
+  const lerpFactor = 0.07 + Math.min(0.12, Math.abs(combinedForce)*0.002);
+  state.velocity += (targetVel - state.velocity) * lerpFactor * dt * 60;
+  state.velocity *= Math.pow(CONFIG.FRICTION, dt*60/16);
+  state.ropeOffset += state.velocity * dt * 60 * 0.65;
+
+  if(Math.abs(combinedForce) < 2){
+    state.ropeOffset *= Math.pow(0.92, dt*60/16);
+  }
+
+  const maxOffset=W*CONFIG.WIN_DIST;
+  const p1CharX=centerX + state.ropeOffset - W*0.28;
+  const p2CharX=centerX + state.ropeOffset + W*0.28;
+
+  // P1 pulls LEFT: ropeOffset negative => p2CharX moves left, crosses center => P1 wins
+  // P2 pulls RIGHT: ropeOffset positive => p1CharX moves right, crosses center => P2 wins
+  if(p1CharX > centerX){ endRound(2); } // P1 crossed to right => P2 pulled right => P2 wins
+  else if(p2CharX < centerX){ endRound(1); } // P2 crossed to left => P1 pulled left => P1 wins
+
+  state.ropeOffset=Math.max(-maxOffset*1.15, Math.min(maxOffset*1.15, state.ropeOffset));
+}
+
+function startCountdown(){
+  state.gameState=GameState.COUNTDOWN;
+  state.ropeOffset=0; state.velocity=0;
+  state.p1Power=0; state.p2Power=0;
+  state.p1Taps=0; state.p2Taps=0;
+  state.p1TapTimes=[]; state.p2TapTimes=[];
+  state.p1TapsPerSec=0; state.p2TapsPerSec=0;
+  const wrap=document.getElementById('countdownWrap');
+  const numEl=document.getElementById('countNum');
+  wrap.style.display='flex'; let count=3;
+  function showCount(){
+    if(count>0){
+      numEl.textContent=count; numEl.classList.remove('anim'); void numEl.offsetWidth; numEl.classList.add('anim'); countSound(count); count--; setTimeout(showCount, CONFIG.COUNTDOWN_MS);
+    }else{
+      numEl.textContent='GO!'; numEl.classList.remove('anim'); void numEl.offsetWidth; numEl.classList.add('anim'); countSound(0);
+      setTimeout(()=>{ wrap.style.display='none'; state.gameState=GameState.PLAYING; },380);
+    }
+  }
+  showCount();
+}
+function startNextRound(){ state.currentRound++; document.getElementById('roundInfo').textContent=state.currentRound+' / 3'; startCountdown(); }
+function endRound(winner){
+  if(state.gameState!==GameState.PLAYING) return;
+  state.gameState=GameState.ROUND_END; 
+  if(winner===1) state.p1Score++; else state.p2Score++;
+  document.getElementById('p1Score').textContent=state.p1Score;
+  document.getElementById('p2Score').textContent=state.p2Score;
+  shake(winner===1?-1:1); winSound();
+  setTimeout(()=>{ if(state.p1Score>=2 || state.p2Score>=2 || state.currentRound>=3){ endMatch(); }else{ showRoundResult(winner); } },600);
+}
+function showRoundResult(winner){
+  const el=document.getElementById('roundEndScreen'); const card=document.getElementById('roundEndCard');
+  const pName=winner===1?'PLAYER 1 (LEFT)':'PLAYER 2 (RIGHT)'; const color=winner===1?'#00e5ff':'#ff7a00';
+  card.innerHTML=`<h1 style="color:${color}">ROUND ${state.currentRound}</h1><h2 style="margin-top:6px">${pName} WINS!</h2><p style="margin-top:8px;font-size:11px;color:#aaa">${winner===1?'Left side pulled left ◀':'Right side pulled right ▶'} - Rope moved ${winner===1?'LEFT':'RIGHT'}</p><div style="margin:14px 0;background:rgba(0,0,0,0.3);border-radius:12px;padding:12px;display:flex;justify-content:space-around"><div><div style="font-size:11px;color:#00e5ff">P1 ${state.p1TapsPerSec}/s</div><div style="font-size:20px;font-weight:900;color:#fff">${state.p1Taps} taps</div></div><div><div style="font-size:11px;color:#ff7a00">P2 ${state.p2TapsPerSec}/s</div><div style="font-size:20px;font-weight:900;color:#fff">${state.p2Taps} taps</div></div></div><div style="font-size:22px;font-weight:900;color:#fff;margin:8px 0">${state.p1Score} - ${state.p2Score}</div><button class="btn" id="nextRoundBtn">▶ NEXT ROUND</button>`;
+  el.style.display='flex';
+  document.getElementById('nextRoundBtn').onclick=()=>{ el.style.display='none'; startNextRound(); };
+}
+function endMatch(){
+  state.gameState=GameState.MATCH_END;
+  const winner=state.p1Score>state.p2Score?1:2;
+  const el=document.getElementById('matchEndScreen'); const card=document.getElementById('matchEndCard');
+  const pName=winner===1?'PLAYER 1 (LEFT)':'PLAYER 2 (RIGHT)'; const color=winner===1?'#00e5ff':'#ff7a00';
+  card.innerHTML=`<h1>🏆</h1><h1 style="color:${color};margin-top:4px">${pName} WINS!</h1><h2 style="margin-top:6px">FINAL • ${state.p1Score} - ${state.p2Score}</h2><p style="font-size:11px;color:#aaa;margin-top:6px">Direction fixed: Left pulls left, Right pulls right</p><button class="btn" id="playAgainBtn">🔄 PLAY AGAIN</button>`;
+  el.style.display='flex';
+  document.getElementById('playAgainBtn').onclick=()=>{ el.style.display='none'; resetMatch(); };
+}
+function resetMatch(){
+  state.currentRound=1; state.p1Score=0; state.p2Score=0; state.ropeOffset=0; state.velocity=0; state.p1Power=0; state.p2Power=0; state.p1TapTimes=[]; state.p2TapTimes=[]; state.p1TapsPerSec=0; state.p2TapsPerSec=0;
+  document.getElementById('p1Score').textContent='0'; document.getElementById('p2Score').textContent='0'; document.getElementById('roundInfo').textContent='1 / 3';
+  startCountdown();
+}
+
+let shakeAmount=0, shakeDir=1;
+function shake(dir){ shakeAmount=16; shakeDir=dir; }
+
+function drawGround(){
+  const groundY=centerY+48;
+  const grad=ctx.createLinearGradient(0,groundY,0,H);
+  grad.addColorStop(0,'#1e3a5a'); grad.addColorStop(1,'#0e1e38');
+  ctx.fillStyle=grad; ctx.fillRect(0,groundY,W,H-groundY);
+}
+function drawCenterLine(){
+  const x=centerX + (shakeAmount>0 ? Math.sin(performance.now()*0.05)*shakeAmount*0.3*shakeDir : 0);
+  ctx.shadowBlur=18; ctx.shadowColor='#ffcc00'; ctx.strokeStyle='#ffcc00'; ctx.lineWidth=4; ctx.setLineDash([18,18]);
+  ctx.beginPath(); ctx.moveTo(x,centerY-90); ctx.lineTo(x,H); ctx.stroke(); ctx.setLineDash([]); ctx.shadowBlur=0;
+  ctx.fillStyle='#ffcc00'; ctx.beginPath(); ctx.arc(x,centerY-92,8,0,Math.PI*2); ctx.fill();
+}
+function drawRope(){
+  const ropeY=centerY-8;
+  const leftX=centerX + state.ropeOffset - W*0.28 + 18;
+  const rightX=centerX + state.ropeOffset + W*0.28 - 18;
+  const segments=22;
+  const wobble=Math.sin(performance.now()*0.012)*(Math.abs(state.velocity)*0.6+2);
+  const tension=Math.min(1, Math.abs(state.p1Power-state.p2Power)/40);
+  ctx.lineWidth=6; ctx.lineCap='round'; ctx.strokeStyle='#e8d5b5';
+  ctx.beginPath();
+  for(let i=0;i<=segments;i++){
+    const t=i/segments; const x=leftX+(rightX-leftX)*t;
+    const y=ropeY+Math.sin(t*Math.PI)*(-8+tension*10)+Math.sin(t*6+performance.now()*0.01)*wobble*0.15;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  ctx.strokeStyle='rgba(255,255,255,0.35)'; ctx.lineWidth=2;
+  ctx.beginPath();
+  for(let i=0;i<=segments;i++){
+    const t=i/segments; const x=leftX+(rightX-leftX)*t;
+    const y=ropeY+Math.sin(t*Math.PI)*(-8+tension*10)+Math.sin(t*6+performance.now()*0.01)*wobble*0.15-2;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.stroke();
+  const knotX=(leftX+rightX)/2; const knotY=ropeY+Math.sin(0.5*Math.PI)*(-8+tension*10);
+  ctx.fillStyle='#ff3c00'; ctx.beginPath(); ctx.arc(knotX,knotY,10,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle='#fff'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(knotX,knotY,10,0,Math.PI*2); ctx.stroke();
+  if(Math.abs(state.p1Power-state.p2Power)>20){
+    ctx.fillStyle= state.p1Power>state.p2Power ? '#00e5ff' : '#ff7a00';
+    ctx.font='bold 12px Arial'; ctx.textAlign='center';
+    const dirText = state.p1Power>state.p2Power ? '◀ P1 PULLING LEFT' : 'PULLING RIGHT ▶ P2';
+    ctx.fillText(dirText, knotX, knotY-22);
+  }
+}
+function drawCharacter(x,y,player,power,leaning){
+  ctx.save(); ctx.translate(x,y); ctx.rotate(leaning*0.25);
+  ctx.fillStyle='rgba(0,0,0,0.3)'; ctx.beginPath(); ctx.ellipse(0,42,22,8,0,0,Math.PI*2); ctx.fill();
+  ctx.strokeStyle= player===1?'#00b7e5':'#cc5a00'; ctx.lineWidth=6; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-8,18); ctx.lineTo(-12+leaning*20,42); ctx.moveTo(8,18); ctx.lineTo(12+leaning*20,42); ctx.stroke();
+  ctx.fillStyle= player===1?'#00e5ff':'#ff7a00'; ctx.fillRect(-12,-10,24,30);
+  ctx.strokeStyle='#ffdbac'; ctx.lineWidth=5; ctx.beginPath(); const armReach=player===1?26:-26; ctx.moveTo(player===1?10:-10,-2); ctx.lineTo(armReach,-12); ctx.stroke();
+  ctx.fillStyle='#ffdbac'; ctx.beginPath(); ctx.arc(0,-18,14,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle='#000'; ctx.beginPath(); ctx.arc(player===1?4:-4,-18,2,0,Math.PI*2); ctx.arc(player===1?-2:2,-18,2,0,Math.PI*2); ctx.fill();
+  if(power>30){
+    ctx.shadowBlur=14; ctx.shadowColor= player===1?'#00e5ff':'#ff7a00'; ctx.strokeStyle= player===1?'#00e5ff':'#ff7a00'; ctx.lineWidth=2; ctx.globalAlpha=Math.min(0.6,power/100); ctx.beginPath(); ctx.arc(0,5,28+power*0.15,0,Math.PI*2); ctx.stroke(); ctx.globalAlpha=1; ctx.shadowBlur=0;
+  }
+  ctx.restore();
+}
+function drawRipples(){
+  for(let i=ripples.length-1;i>=0;i--){
+    const r=ripples[i]; r.r+=3.5; r.life-=0.03;
+    if(r.life<=0){ ripples.splice(i,1); continue; }
+    ctx.globalAlpha=r.life*0.5; ctx.strokeStyle= r.player===1?'#00e5ff':'#ff7a00'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(r.x,r.y,r.r,0,Math.PI*2); ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+}
+function render(){
+  ctx.fillStyle='#0a0e1a'; ctx.fillRect(0,0,W,H);
+  const bgGrad=ctx.createRadialGradient(centerX,centerY-120,0,centerX,centerY-120,W*0.8);
+  bgGrad.addColorStop(0,'rgba(42,68,128,0.35)'); bgGrad.addColorStop(1,'rgba(0,0,0,0)');
+  ctx.fillStyle=bgGrad; ctx.fillRect(0,0,W,H);
+  let shakeX=0,shakeY=0;
+  if(shakeAmount>0){ shakeX=(Math.random()-0.5)*shakeAmount*shakeDir; shakeY=(Math.random()-0.5)*shakeAmount*0.5; shakeAmount*=0.88; if(shakeAmount<0.5) shakeAmount=0; }
+  ctx.save(); ctx.translate(shakeX,shakeY);
+  drawGround(); drawCenterLine(); drawRope();
+  const p1X=centerX+state.ropeOffset-W*0.28; const p2X=centerX+state.ropeOffset+W*0.28;
+  const p1Lean=(state.p1Power-state.p2Power)*0.008 + state.velocity*0.02;
+  const p2Lean=(state.p2Power-state.p1Power)*0.008 - state.velocity*0.02;
+  drawCharacter(p1X,centerY,1,state.p1Power,p1Lean);
+  drawCharacter(p2X,centerY,2,state.p2Power,p2Lean);
+  drawRipples();
+  ctx.restore();
+  document.getElementById('p1PowerBar').style.width=(state.p1Power/100*100)+'%';
+  document.getElementById('p2PowerBar').style.width=(state.p2Power/100*100)+'%';
+  document.getElementById('p1TapsLabel').textContent=`P1 ${state.p1TapsPerSec}/s ◀`;
+  document.getElementById('p2TapsLabel').textContent=`▶ ${state.p2TapsPerSec}/s P2`;
+  const maxOffset=W*CONFIG.WIN_DIST;
+  const nearWin=Math.abs(state.ropeOffset)/maxOffset;
+  if(nearWin>0.75 && state.gameState==='playing'){ if(Math.random()<0.12) shake(state.ropeOffset>0?1:-1); }
+}
+
+let last=performance.now();
+function loop(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  if(state.gameState===GameState.PLAYING) updatePhysics(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+document.getElementById('startBtn').addEventListener('click', ()=>{
+  ensureAudio();
+  document.getElementById('startScreen').style.display='none';
+  state.currentRound=1; state.p1Score=0; state.p2Score=0;
+  document.getElementById('roundInfo').textContent='1 / 3';
+  startCountdown();
+});
+</script>
+</body>
+</html>
