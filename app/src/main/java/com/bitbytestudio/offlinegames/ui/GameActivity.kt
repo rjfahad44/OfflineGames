@@ -1,5 +1,6 @@
 package com.bitbytestudio.offlinegames.ui
 
+import android.annotation.SuppressLint
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -59,6 +60,7 @@ class GameActivity : ComponentActivity() {
         webView.loadUrl(url)
     }
 
+    @SuppressLint("SetJavaScriptEnabled")
     private fun setupWebView() {
         webView.settings.apply {
             javaScriptEnabled = true
@@ -81,6 +83,7 @@ class GameActivity : ComponentActivity() {
         webView.isVerticalScrollBarEnabled = false
         webView.isHorizontalScrollBarEnabled = false
 
+        @SuppressLint("MissingOnRenderProcessGone")
         webView.webViewClient = object : WebViewClient() {
             override fun shouldInterceptRequest(
                 view: WebView,
